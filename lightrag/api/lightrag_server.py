@@ -2,43 +2,33 @@
 LightRAG FastAPI Server
 """
 
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from fastapi.openapi.docs import (
-    get_swagger_ui_html,
-    get_swagger_ui_oauth2_redirect_html,
-)
 import os
 import logging
 import logging.config
 import sys
 import uvicorn
 import pipmaster as pm
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse
 from pathlib import Path
 import configparser
 from ascii_colors import ASCIIColors
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
-from lightrag.api.utils_api import (
-    get_combined_auth_dependency,
-    display_splash_screen,
-    check_env_file,
-)
-from lightrag.operate import semantic_chunking_by_token_size
+from lightrag.api.utils_api import display_splash_screen, check_env_file
 from .config import (
     global_args,
     update_uvicorn_mode_config,
     get_default_host,
 )
 from lightrag.utils import get_env_value
-from lightrag import LightRAG, __version__ as core_version
+from lightrag import LightRAG
 from lightrag.api import __api_version__
 from lightrag.types import GPTKeywordExtractionFormat
 from lightrag.utils import EmbeddingFunc
+from lightrag.api.route_registry import RouteRegistryContext, register_app_routes
 from lightrag.constants import (
     DEFAULT_LOG_MAX_BYTES,
     DEFAULT_LOG_BACKUP_COUNT,
@@ -46,24 +36,12 @@ from lightrag.constants import (
     DEFAULT_LLM_TIMEOUT,
     DEFAULT_EMBEDDING_TIMEOUT,
 )
-from lightrag.api.routers.document_routes import (
-    DocumentManager,
-    create_document_routes,
-)
-from lightrag.api.routers.query_routes import create_query_routes
-from lightrag.api.routers.graph_routes import create_graph_routes
-from lightrag.api.routers.ollama_api import OllamaAPI
+from lightrag.api.routers.document_routes import DocumentManager
 
 from lightrag.utils import logger, set_verbose_debug
 from lightrag.kg.shared_storage import (
-    get_namespace_data,
-    get_default_workspace,
-    # set_default_workspace,
-    cleanup_keyed_lock,
     finalize_share_data,
 )
-from fastapi.security import OAuth2PasswordRequestForm
-from lightrag.api.auth import auth_handler
 
 # use the .env that is inside the current folder
 # allows to use different .env file for each lightrag instance
@@ -77,10 +55,6 @@ webui_description = os.getenv("WEBUI_DESCRIPTION")
 # Initialize config parser
 config = configparser.ConfigParser()
 config.read("config.ini")
-
-# Global authentication configuration
-auth_configured = bool(auth_handler.accounts)
-
 
 class LLMConfigCache:
     """Smart LLM and Embedding configuration cache class"""
@@ -455,31 +429,6 @@ def create_app(args):
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    # Create combined auth dependency for all endpoints
-    combined_auth = get_combined_auth_dependency(api_key)
-
-    def get_workspace_from_request(request: Request) -> str | None:
-        """
-        Extract workspace from HTTP request header or use default.
-
-        This enables multi-workspace API support by checking the custom
-        'LIGHTRAG-WORKSPACE' header. If not present, falls back to the
-        server's default workspace configuration.
-
-        Args:
-            request: FastAPI Request object
-
-        Returns:
-            Workspace identifier (may be empty string for global namespace)
-        """
-        # Check custom header first
-        workspace = request.headers.get("LIGHTRAG-WORKSPACE", "").strip()
-
-        if not workspace:
-            workspace = None
-
-        return workspace
 
     # Create working directory if it doesn't exist
     Path(args.working_dir).mkdir(parents=True, exist_ok=True)
@@ -1097,278 +1046,23 @@ def create_app(args):
         logger.error(f"Failed to initialize LightRAG: {e}")
         raise
 
-    # Add routes
-    app.include_router(
-        create_document_routes(
-            rag,
-            doc_manager,
-            api_key,
-        )
+    from lightrag.api.auth import auth_handler
+
+    register_app_routes(
+        app,
+        RouteRegistryContext(
+            rag=rag,
+            doc_manager=doc_manager,
+            api_key=api_key,
+            args=args,
+            api_version_display=api_version_display,
+            webui_assets_exist=webui_assets_exist,
+            webui_title=webui_title,
+            webui_description=webui_description,
+            rerank_enabled=rerank_model_func is not None,
+            auth_handler=auth_handler,
+        ),
     )
-    app.include_router(create_query_routes(rag, api_key, args.top_k))
-    app.include_router(create_graph_routes(rag, api_key))
-
-    # Add Ollama API routes
-    ollama_api = OllamaAPI(rag, top_k=args.top_k, api_key=api_key)
-    app.include_router(ollama_api.router, prefix="/api")
-
-    # Custom Swagger UI endpoint for offline support
-    @app.get("/docs", include_in_schema=False)
-    async def custom_swagger_ui_html():
-        """Custom Swagger UI HTML with local static files"""
-        return get_swagger_ui_html(
-            openapi_url=app.openapi_url,
-            title=app.title + " - Swagger UI",
-            oauth2_redirect_url="/docs/oauth2-redirect",
-            swagger_js_url="/static/swagger-ui/swagger-ui-bundle.js",
-            swagger_css_url="/static/swagger-ui/swagger-ui.css",
-            swagger_favicon_url="/static/swagger-ui/favicon-32x32.png",
-            swagger_ui_parameters=app.swagger_ui_parameters,
-        )
-
-    @app.get("/docs/oauth2-redirect", include_in_schema=False)
-    async def swagger_ui_redirect():
-        """OAuth2 redirect for Swagger UI"""
-        return get_swagger_ui_oauth2_redirect_html()
-
-    @app.get("/")
-    async def redirect_to_webui():
-        """Redirect root path based on WebUI availability"""
-        if webui_assets_exist:
-            return RedirectResponse(url="/webui")
-        else:
-            return RedirectResponse(url="/docs")
-
-    @app.get("/auth-status")
-    async def get_auth_status():
-        """Get authentication status and guest token if auth is not configured"""
-
-        if not auth_handler.accounts:
-            # Authentication not configured, return guest token
-            guest_token = auth_handler.create_token(
-                username="guest", role="guest", metadata={"auth_mode": "disabled"}
-            )
-            return {
-                "auth_configured": False,
-                "access_token": guest_token,
-                "token_type": "bearer",
-                "auth_mode": "disabled",
-                "message": "Authentication is disabled. Using guest access.",
-                "core_version": core_version,
-                "api_version": api_version_display,
-                "webui_title": webui_title,
-                "webui_description": webui_description,
-            }
-
-        return {
-            "auth_configured": True,
-            "auth_mode": "enabled",
-            "core_version": core_version,
-            "api_version": api_version_display,
-            "webui_title": webui_title,
-            "webui_description": webui_description,
-        }
-
-    @app.post("/login")
-    async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-        if not auth_handler.accounts:
-            # Authentication not configured, return guest token
-            guest_token = auth_handler.create_token(
-                username="guest", role="guest", metadata={"auth_mode": "disabled"}
-            )
-            return {
-                "access_token": guest_token,
-                "token_type": "bearer",
-                "auth_mode": "disabled",
-                "message": "Authentication is disabled. Using guest access.",
-                "core_version": core_version,
-                "api_version": api_version_display,
-                "webui_title": webui_title,
-                "webui_description": webui_description,
-            }
-        username = form_data.username
-        if auth_handler.accounts.get(username) != form_data.password:
-            raise HTTPException(status_code=401, detail="Incorrect credentials")
-
-        # Regular user login
-        user_token = auth_handler.create_token(
-            username=username, role="user", metadata={"auth_mode": "enabled"}
-        )
-        return {
-            "access_token": user_token,
-            "token_type": "bearer",
-            "auth_mode": "enabled",
-            "core_version": core_version,
-            "api_version": api_version_display,
-            "webui_title": webui_title,
-            "webui_description": webui_description,
-        }
-
-    @app.get(
-        "/health",
-        dependencies=[Depends(combined_auth)],
-        summary="Get system health and configuration status",
-        description="Returns comprehensive system status including WebUI availability, configuration, and operational metrics",
-        response_description="System health status with configuration details",
-        responses={
-            200: {
-                "description": "Successful response with system status",
-                "content": {
-                    "application/json": {
-                        "example": {
-                            "status": "healthy",
-                            "webui_available": True,
-                            "working_directory": "/path/to/working/dir",
-                            "input_directory": "/path/to/input/dir",
-                            "configuration": {
-                                "llm_binding": "openai",
-                                "llm_model": "gpt-4",
-                                "embedding_binding": "openai",
-                                "embedding_model": "text-embedding-ada-002",
-                                "workspace": "default",
-                            },
-                            "auth_mode": "enabled",
-                            "pipeline_busy": False,
-                            "core_version": "0.0.1",
-                            "api_version": "0.0.1",
-                        }
-                    }
-                },
-            }
-        },
-    )
-    async def get_status(request: Request):
-        """Get current system status including WebUI availability"""
-        try:
-            workspace = get_workspace_from_request(request)
-            default_workspace = get_default_workspace()
-            if workspace is None:
-                workspace = default_workspace
-            pipeline_status = await get_namespace_data(
-                "pipeline_status", workspace=workspace
-            )
-
-            if not auth_configured:
-                auth_mode = "disabled"
-            else:
-                auth_mode = "enabled"
-
-            # Cleanup expired keyed locks and get status
-            keyed_lock_info = cleanup_keyed_lock()
-
-            return {
-                "status": "healthy",
-                "webui_available": webui_assets_exist,
-                "working_directory": str(args.working_dir),
-                "input_directory": str(args.input_dir),
-                "configuration": {
-                    # LLM configuration binding/host address (if applicable)/model (if applicable)
-                    "llm_binding": args.llm_binding,
-                    "llm_binding_host": args.llm_binding_host,
-                    "llm_model": args.llm_model,
-                    # embedding model configuration binding/host address (if applicable)/model (if applicable)
-                    "embedding_binding": args.embedding_binding,
-                    "embedding_binding_host": args.embedding_binding_host,
-                    "embedding_model": args.embedding_model,
-                    "summary_max_tokens": args.summary_max_tokens,
-                    "summary_context_size": args.summary_context_size,
-                    "kv_storage": args.kv_storage,
-                    "doc_status_storage": args.doc_status_storage,
-                    "graph_storage": args.graph_storage,
-                    "vector_storage": args.vector_storage,
-                    "enable_llm_cache_for_extract": args.enable_llm_cache_for_extract,
-                    "enable_llm_cache": args.enable_llm_cache,
-                    "workspace": default_workspace,
-                    "max_graph_nodes": args.max_graph_nodes,
-                    # Rerank configuration
-                    "enable_rerank": rerank_model_func is not None,
-                    "rerank_binding": args.rerank_binding,
-                    "rerank_model": args.rerank_model if rerank_model_func else None,
-                    "rerank_binding_host": args.rerank_binding_host
-                    if rerank_model_func
-                    else None,
-                    # Environment variable status (requested configuration)
-                    "summary_language": args.summary_language,
-                    "force_llm_summary_on_merge": args.force_llm_summary_on_merge,
-                    "max_parallel_insert": args.max_parallel_insert,
-                    "cosine_threshold": args.cosine_threshold,
-                    "min_rerank_score": args.min_rerank_score,
-                    "related_chunk_number": args.related_chunk_number,
-                    "max_async": args.max_async,
-                    "embedding_func_max_async": args.embedding_func_max_async,
-                    "embedding_batch_num": args.embedding_batch_num,
-                },
-                "auth_mode": auth_mode,
-                "pipeline_busy": pipeline_status.get("busy", False),
-                "keyed_locks": keyed_lock_info,
-                "core_version": core_version,
-                "api_version": api_version_display,
-                "webui_title": webui_title,
-                "webui_description": webui_description,
-            }
-        except Exception as e:
-            logger.error(f"Error getting health status: {str(e)}")
-            raise HTTPException(status_code=500, detail=str(e))
-
-    # Custom StaticFiles class for smart caching
-    class SmartStaticFiles(StaticFiles):  # Renamed from NoCacheStaticFiles
-        async def get_response(self, path: str, scope):
-            response = await super().get_response(path, scope)
-
-            is_html = path.endswith(".html") or response.media_type == "text/html"
-
-            if is_html:
-                response.headers["Cache-Control"] = (
-                    "no-cache, no-store, must-revalidate"
-                )
-                response.headers["Pragma"] = "no-cache"
-                response.headers["Expires"] = "0"
-            elif (
-                "/assets/" in path
-            ):  # Assets (JS, CSS, images, fonts) generated by Vite with hash in filename
-                response.headers["Cache-Control"] = (
-                    "public, max-age=31536000, immutable"
-                )
-            # Add other rules here if needed for non-HTML, non-asset files
-
-            # Ensure correct Content-Type
-            if path.endswith(".js"):
-                response.headers["Content-Type"] = "application/javascript"
-            elif path.endswith(".css"):
-                response.headers["Content-Type"] = "text/css"
-
-            return response
-
-    # Mount Swagger UI static files for offline support
-    swagger_static_dir = Path(__file__).parent / "static" / "swagger-ui"
-    if swagger_static_dir.exists():
-        app.mount(
-            "/static/swagger-ui",
-            StaticFiles(directory=swagger_static_dir),
-            name="swagger-ui-static",
-        )
-
-    # Conditionally mount WebUI only if assets exist
-    if webui_assets_exist:
-        static_dir = Path(__file__).parent / "webui"
-        static_dir.mkdir(exist_ok=True)
-        app.mount(
-            "/webui",
-            SmartStaticFiles(
-                directory=static_dir, html=True, check_dir=True
-            ),  # Use SmartStaticFiles
-            name="webui",
-        )
-        logger.info("WebUI assets mounted at /webui")
-    else:
-        logger.info("WebUI assets not available, /webui route not mounted")
-
-        # Add redirect for /webui when assets are not available
-        @app.get("/webui")
-        @app.get("/webui/")
-        async def webui_redirect_to_docs():
-            """Redirect /webui to /docs when WebUI is not available"""
-            return RedirectResponse(url="/docs")
 
     return app
 

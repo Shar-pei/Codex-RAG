@@ -29,6 +29,7 @@ This file freezes the current public surfaces that later refactors must either p
 
 ## HTTP API Surface
 - App factory currently lives in `lightrag/api/lightrag_server.py`
+- Route registration now lives in `lightrag/api/route_registry.py`
 - Router families currently included by the app:
   - document routes under `/documents`
   - query routes from `lightrag/api/routers/query_routes.py`

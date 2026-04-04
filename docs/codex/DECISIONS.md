@@ -152,3 +152,19 @@
   - Workspace precedence is now documented once, tested once, and reused across the active storage adapters.
   - Chroma now keeps the resolved workspace on `self.workspace`, which makes its collection metadata, logs, and adapter state agree when provider overrides are present.
   - Validation for `C1` stays scoped to the touched adapter seam because repo-wide Ruff still includes unrelated baseline lint debt outside this task.
+
+## DCR-012: D1 keeps `lightrag_server.py` as the app factory and moves route composition into a registrar module
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - `lightrag/api/lightrag_server.py` had grown into a 1300+ line hotspot that mixed startup validation, LightRAG construction, route inclusion, auth endpoints, health reporting, and static asset mounting in one function.
+  - The narrowest clean seam was the route composition block after `create_app()` finished building the FastAPI instance and runtime dependencies.
+  - Import-time auth/config side effects in the older API modules make broad restructuring risky without a separate config-bootstrap task.
+- Decision:
+  - Keep `create_app()` and lifecycle wiring in `lightrag/api/lightrag_server.py`.
+  - Extract route assembly, auth/status endpoints, health route registration, Swagger/WebUI mounts, and related helpers into `lightrag/api/route_registry.py`.
+  - Pass the auth handler and runtime context into the registrar explicitly so route composition depends on injected runtime state instead of hidden module globals.
+- Impact:
+  - The app factory and route registration now live in separate modules without changing externally visible route paths.
+  - Auth and route dependencies are more explicit at the composition boundary, and focused tests can validate route wiring without booting the full server lifecycle.
+  - Validation for `D1` stays scoped to the touched API seam because repo-wide Ruff still reports unrelated baseline lint debt in modules such as `lightrag/llm/hf.py`, `lightrag/llm/my_hf.py`, `lightrag/rerank.py`, and `lightrag/semantic_chunking.py`.

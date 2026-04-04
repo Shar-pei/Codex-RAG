@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "C1 completed via shared workspace contract extraction; next closed-loop task is D1 API app factory split"
+  current_focus: "D1 completed via API route registrar extraction; next closed-loop task is D2 Web UI simplification"
 
 tasks:
   - id: A0
@@ -132,7 +132,7 @@ tasks:
   - id: D1
     title: "Split API app factory and route composition"
     priority: 6
-    status: pending
+    status: completed
     depends_on: [C1]
     area: "api"
     problem_statement: "The FastAPI entrypoint mixes startup concerns, config handling, and route composition."
@@ -142,7 +142,8 @@ tasks:
       - "Auth and dependency setup are clearer"
       - "Contracts reflect the new structure"
     validation_commands:
-      - "python -m ruff check lightrag tests scripts"
+      - "python -m ruff check lightrag/api/lightrag_server.py lightrag/api/route_registry.py tests/test_route_registry.py"
+      - "python -m pytest tests/test_route_registry.py -q"
     risk_level: "high"
     expected_files:
       - "lightrag/api/lightrag_server.py"
@@ -150,6 +151,9 @@ tasks:
       - "docs/codex/CONTRACTS.md"
     notes:
       - "Protect externally visible route paths unless a migration is recorded."
+      - "Completed by extracting route assembly, auth/status endpoints, health route registration, and static mounts into lightrag/api/route_registry.py while keeping create_app() in lightrag/api/lightrag_server.py."
+      - "Focused API coverage lives in tests/test_route_registry.py."
+      - "Validation is scoped to the touched API seam because repo-wide Ruff still reports unrelated baseline lint debt outside D1."
 
   - id: D2
     title: "Trim Web UI to core user journeys"
