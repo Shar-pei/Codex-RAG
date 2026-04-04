@@ -45,3 +45,19 @@
 - Impact:
   - Bootstrap work remains isolated.
   - Product changes can be reviewed on their own timeline.
+
+## DCR-005: Active engineering baseline is the Postgres + Chroma + Neo4j storage consolidation
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - The `codex/lightrag` branch already contains an uncommitted product-focused diff that is broader than the Codex bootstrap files.
+  - The active changes are coherent: they switch runtime defaults and docs toward `PGKVStorage + PGDocStatusStorage + ChromaVectorDBStorage + Neo4JStorage`, add a new `lightrag/kg/chroma_impl.py` adapter, add `lightrag/tools/migrate_to_pg_chroma_neo4j.py`, and add focused Chroma coverage in `tests/test_chroma_storage.py`.
+  - The bootstrap commits remain isolated in history (`a264fdd`, `b4964ba`), so the remaining worktree should be treated as the next documented product baseline rather than mixed back into bootstrap.
+- Decision:
+  - Treat the current dirty worktree as the active engineering baseline for follow-on Codex tasks on `codex/lightrag`.
+  - Assume the branch is converging on a single documented production storage stack built from Postgres, Chroma, and Neo4j, with a migration path from the legacy local JSON + NanoVectorDB + NetworkX stack.
+  - Keep future queue work scoped against that baseline unless a later decision deliberately re-expands storage support.
+- Impact:
+  - Queue prioritization can proceed without first reverse-engineering the existing product diff again.
+  - Contract and refactor work should preserve or deliberately migrate the new storage defaults and migration tooling.
+  - The worktree is explainable even before the storage-stack change set itself is committed.

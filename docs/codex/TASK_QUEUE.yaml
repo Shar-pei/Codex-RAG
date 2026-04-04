@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Phase A bootstrap and baseline quality automation"
+  current_focus: "Baseline captured for the active Postgres + Chroma + Neo4j branch work; next closed-loop task is the core-engine split"
 
 tasks:
   - id: A0
@@ -32,7 +32,7 @@ tasks:
   - id: A1
     title: "Absorb active worktree into a documented engineering baseline"
     priority: 2
-    status: pending
+    status: completed
     depends_on: [A0]
     area: "baseline"
     problem_statement: "The branch already contains local changes, but they are not yet summarized as the active engineering baseline."
@@ -48,7 +48,8 @@ tasks:
       - "docs/codex/DECISIONS.md"
       - "docs/codex/TASK_QUEUE.yaml"
     notes:
-      - "Do not revert unrelated user changes."
+      - "Completed by recording the active storage-stack consolidation baseline in DCR-005."
+      - "Bootstrap commits remain isolated in history while the dirty worktree is treated as the current product baseline."
 
   - id: B1
     title: "Split lightrag/lightrag.py by orchestration responsibility"
