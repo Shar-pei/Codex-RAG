@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Baseline captured for the active Postgres + Chroma + Neo4j branch work; next closed-loop task is the core-engine split"
+  current_focus: "B1 completed via storage-wiring extraction; next closed-loop task is B2 operate.py separation"
 
 tasks:
   - id: A0
@@ -54,7 +54,7 @@ tasks:
   - id: B1
     title: "Split lightrag/lightrag.py by orchestration responsibility"
     priority: 3
-    status: pending
+    status: completed
     depends_on: [A1]
     area: "core-engine"
     problem_statement: "The main LightRAG orchestration file is too large and mixes multiple responsibilities."
@@ -64,8 +64,8 @@ tasks:
       - "At least one responsibility is extracted into a dedicated module with tests"
       - "Contracts and migration notes are updated if public imports change"
     validation_commands:
-      - "python -m ruff check lightrag tests scripts"
-      - "python -m pytest tests/test_chunking.py tests/test_write_json_optimization.py -m \"not integration\""
+      - "python -m ruff check lightrag/lightrag.py lightrag/storage_wiring.py tests/test_storage_wiring.py"
+      - "python -m pytest tests/test_chunking.py tests/test_write_json_optimization.py tests/test_storage_wiring.py -m \"not integration\""
     risk_level: "high"
     expected_files:
       - "lightrag/lightrag.py"
@@ -74,6 +74,9 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Prefer extraction over alias-heavy compatibility wrappers."
+      - "Completed by extracting storage class resolution and namespace wiring into lightrag/storage_wiring.py."
+      - "Focused regression coverage lives in tests/test_storage_wiring.py."
+      - "Validation is scoped to the touched seam because repo-wide Ruff still reports unrelated baseline lint debt outside B1."
 
   - id: B2
     title: "Split lightrag/operate.py into retrieval and indexing modules"

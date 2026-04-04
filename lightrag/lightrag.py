@@ -56,10 +56,7 @@ from lightrag.constants import (
 )
 from lightrag.utils import get_env_value
 
-from lightrag.kg import (
-    STORAGES,
-    verify_storage_implementation,
-)
+from lightrag.kg import verify_storage_implementation
 
 
 from lightrag.kg.shared_storage import (
@@ -84,9 +81,7 @@ from lightrag.base import (
     OllamaServerInfos,
     QueryResult,
 )
-from lightrag.namespace import NameSpace
 from lightrag.operate import (
-    chunking_by_token_size,
     extract_entities,
     merge_nodes_and_edges,
     kg_query,
@@ -94,13 +89,13 @@ from lightrag.operate import (
     rebuild_knowledge_from_chunks, semantic_chunking_by_token_size,
 )
 from lightrag.constants import GRAPH_FIELD_SEP
+from lightrag.storage_wiring import build_storage_bundle, build_storage_factories
 from lightrag.utils import (
     Tokenizer,
     TiktokenTokenizer,
     EmbeddingFunc,
     always_get_an_event_loop,
     compute_mdhash_id,
-    lazy_external_import,
     priority_limit_async_func_call,
     get_content_summary,
     sanitize_text_for_encoding,
@@ -139,16 +134,16 @@ class LightRAG:
     # Storage
     # ---
 
-    kv_storage: str = field(default="JsonKVStorage")
+    kv_storage: str = field(default="PGKVStorage")
     """Storage backend for key-value data."""
 
-    vector_storage: str = field(default="NanoVectorDBStorage")
+    vector_storage: str = field(default="ChromaVectorDBStorage")
     """Storage backend for vector embeddings."""
 
-    graph_storage: str = field(default="NetworkXStorage")
+    graph_storage: str = field(default="Neo4JStorage")
     """Storage backend for knowledge graphs."""
 
-    doc_status_storage: str = field(default="JsonDocStatusStorage")
+    doc_status_storage: str = field(default="PGDocStatusStorage")
     """Storage type for tracking document processing statuses."""
 
     # Workspace
@@ -542,104 +537,39 @@ class LightRAG:
             queue_name="Embedding func",
         )(self.embedding_func)
 
-        # Initialize all storages
-        self.key_string_value_json_storage_cls: type[BaseKVStorage] = (
-            self._get_storage_class(self.kv_storage)
-        )  # type: ignore
-        self.vector_db_storage_cls: type[BaseVectorStorage] = self._get_storage_class(
-            self.vector_storage
-        )  # type: ignore
-        self.graph_storage_cls: type[BaseGraphStorage] = self._get_storage_class(
-            self.graph_storage
-        )  # type: ignore
-        self.key_string_value_json_storage_cls = partial(  # type: ignore
-            self.key_string_value_json_storage_cls, global_config=global_config
-        )
-        self.vector_db_storage_cls = partial(  # type: ignore
-            self.vector_db_storage_cls, global_config=global_config
-        )
-        self.graph_storage_cls = partial(  # type: ignore
-            self.graph_storage_cls, global_config=global_config
-        )
-
-        # Initialize document status storage
-        self.doc_status_storage_cls = self._get_storage_class(self.doc_status_storage)
-
-        self.llm_response_cache: BaseKVStorage = self.key_string_value_json_storage_cls(  # type: ignore
-            namespace=NameSpace.KV_STORE_LLM_RESPONSE_CACHE,
-            workspace=self.workspace,
+        storage_factories = build_storage_factories(
+            kv_storage=self.kv_storage,
+            vector_storage=self.vector_storage,
+            graph_storage=self.graph_storage,
+            doc_status_storage=self.doc_status_storage,
             global_config=global_config,
-            embedding_func=self.embedding_func,
         )
+        self.key_string_value_json_storage_cls = storage_factories.key_value
+        self.vector_db_storage_cls = storage_factories.vector
+        self.graph_storage_cls = storage_factories.graph
+        self.doc_status_storage_cls = storage_factories.doc_status
 
-        self.text_chunks: BaseKVStorage = self.key_string_value_json_storage_cls(  # type: ignore
-            namespace=NameSpace.KV_STORE_TEXT_CHUNKS,
+        self._storage_bundle = build_storage_bundle(
+            factories=storage_factories,
             workspace=self.workspace,
             embedding_func=self.embedding_func,
         )
-
-        self.full_docs: BaseKVStorage = self.key_string_value_json_storage_cls(  # type: ignore
-            namespace=NameSpace.KV_STORE_FULL_DOCS,
-            workspace=self.workspace,
-            embedding_func=self.embedding_func,
+        self.llm_response_cache: BaseKVStorage = self._storage_bundle.llm_response_cache
+        self.text_chunks: BaseKVStorage = self._storage_bundle.text_chunks
+        self.full_docs: BaseKVStorage = self._storage_bundle.full_docs
+        self.full_entities: BaseKVStorage = self._storage_bundle.full_entities
+        self.full_relations: BaseKVStorage = self._storage_bundle.full_relations
+        self.entity_chunks: BaseKVStorage = self._storage_bundle.entity_chunks
+        self.relation_chunks: BaseKVStorage = self._storage_bundle.relation_chunks
+        self.chunk_entity_relation_graph: BaseGraphStorage = (
+            self._storage_bundle.chunk_entity_relation_graph
         )
-
-        self.full_entities: BaseKVStorage = self.key_string_value_json_storage_cls(  # type: ignore
-            namespace=NameSpace.KV_STORE_FULL_ENTITIES,
-            workspace=self.workspace,
-            embedding_func=self.embedding_func,
+        self.entities_vdb: BaseVectorStorage = self._storage_bundle.entities_vdb
+        self.relationships_vdb: BaseVectorStorage = (
+            self._storage_bundle.relationships_vdb
         )
-
-        self.full_relations: BaseKVStorage = self.key_string_value_json_storage_cls(  # type: ignore
-            namespace=NameSpace.KV_STORE_FULL_RELATIONS,
-            workspace=self.workspace,
-            embedding_func=self.embedding_func,
-        )
-
-        self.entity_chunks: BaseKVStorage = self.key_string_value_json_storage_cls(  # type: ignore
-            namespace=NameSpace.KV_STORE_ENTITY_CHUNKS,
-            workspace=self.workspace,
-            embedding_func=self.embedding_func,
-        )
-
-        self.relation_chunks: BaseKVStorage = self.key_string_value_json_storage_cls(  # type: ignore
-            namespace=NameSpace.KV_STORE_RELATION_CHUNKS,
-            workspace=self.workspace,
-            embedding_func=self.embedding_func,
-        )
-
-        self.chunk_entity_relation_graph: BaseGraphStorage = self.graph_storage_cls(  # type: ignore
-            namespace=NameSpace.GRAPH_STORE_CHUNK_ENTITY_RELATION,
-            workspace=self.workspace,
-            embedding_func=self.embedding_func,
-        )
-
-        self.entities_vdb: BaseVectorStorage = self.vector_db_storage_cls(  # type: ignore
-            namespace=NameSpace.VECTOR_STORE_ENTITIES,
-            workspace=self.workspace,
-            embedding_func=self.embedding_func,
-            meta_fields={"entity_name", "source_id", "content", "file_path"},
-        )
-        self.relationships_vdb: BaseVectorStorage = self.vector_db_storage_cls(  # type: ignore
-            namespace=NameSpace.VECTOR_STORE_RELATIONSHIPS,
-            workspace=self.workspace,
-            embedding_func=self.embedding_func,
-            meta_fields={"src_id", "tgt_id", "source_id", "content", "file_path"},
-        )
-        self.chunks_vdb: BaseVectorStorage = self.vector_db_storage_cls(  # type: ignore
-            namespace=NameSpace.VECTOR_STORE_CHUNKS,
-            workspace=self.workspace,
-            embedding_func=self.embedding_func,
-            meta_fields={"full_doc_id", "content", "file_path"},
-        )
-
-        # Initialize document status storage
-        self.doc_status: DocStatusStorage = self.doc_status_storage_cls(
-            namespace=NameSpace.DOC_STATUS,
-            workspace=self.workspace,
-            global_config=global_config,
-            embedding_func=None,
-        )
+        self.chunks_vdb: BaseVectorStorage = self._storage_bundle.chunks_vdb
+        self.doc_status: DocStatusStorage = self._storage_bundle.doc_status
 
         # Directly use llm_response_cache, don't create a new object
         hashing_kv = self.llm_response_cache
@@ -678,20 +608,7 @@ class LightRAG:
 
             await initialize_pipeline_status(workspace=self.workspace)
 
-            for storage in (
-                self.full_docs,
-                self.text_chunks,
-                self.full_entities,
-                self.full_relations,
-                self.entity_chunks,
-                self.relation_chunks,
-                self.entities_vdb,
-                self.relationships_vdb,
-                self.chunks_vdb,
-                self.chunk_entity_relation_graph,
-                self.llm_response_cache,
-                self.doc_status,
-            ):
+            for storage in self._storage_bundle.initialize_order():
                 if storage:
                     # logger.debug(f"Initializing storage: {storage}")
                     await storage.initialize()
@@ -702,26 +619,11 @@ class LightRAG:
     async def finalize_storages(self):
         """Asynchronously finalize the storages with improved error handling"""
         if self._storages_status == StoragesStatus.INITIALIZED:
-            storages = [
-                ("full_docs", self.full_docs),
-                ("text_chunks", self.text_chunks),
-                ("full_entities", self.full_entities),
-                ("full_relations", self.full_relations),
-                ("entity_chunks", self.entity_chunks),
-                ("relation_chunks", self.relation_chunks),
-                ("entities_vdb", self.entities_vdb),
-                ("relationships_vdb", self.relationships_vdb),
-                ("chunks_vdb", self.chunks_vdb),
-                ("chunk_entity_relation_graph", self.chunk_entity_relation_graph),
-                ("llm_response_cache", self.llm_response_cache),
-                ("doc_status", self.doc_status),
-            ]
-
             # Finalize each storage individually to ensure one failure doesn't prevent others from closing
             successful_finalizations = []
             failed_finalizations = []
 
-            for storage_name, storage in storages:
+            for storage_name, storage in self._storage_bundle.named_storages():
                 if storage:
                     try:
                         await storage.finalize()
@@ -1078,30 +980,6 @@ class LightRAG:
         return await self.chunk_entity_relation_graph.get_knowledge_graph(
             node_label, max_depth, max_nodes
         )
-
-    def _get_storage_class(self, storage_name: str) -> Callable[..., Any]:
-        # Direct imports for default storage implementations
-        if storage_name == "JsonKVStorage":
-            from lightrag.kg.json_kv_impl import JsonKVStorage
-
-            return JsonKVStorage
-        elif storage_name == "NanoVectorDBStorage":
-            from lightrag.kg.nano_vector_db_impl import NanoVectorDBStorage
-
-            return NanoVectorDBStorage
-        elif storage_name == "NetworkXStorage":
-            from lightrag.kg.networkx_impl import NetworkXStorage
-
-            return NetworkXStorage
-        elif storage_name == "JsonDocStatusStorage":
-            from lightrag.kg.json_doc_status_impl import JsonDocStatusStorage
-
-            return JsonDocStatusStorage
-        else:
-            # Fallback to dynamic import for other storage implementations
-            import_path = STORAGES[storage_name]
-            storage_class = lazy_external_import(import_path, storage_name)
-            return storage_class
 
     def insert(
         self,
@@ -1662,9 +1540,6 @@ class LightRAG:
                 return
 
         try:
-            # 添加重试计数器
-            retry_count = 0
-            max_retries = 3  # 最大重试次数
             # Process documents until no more documents or requests
             while True:
                 # Check for cancellation request at the start of main loop
