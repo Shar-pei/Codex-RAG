@@ -1,0 +1,187 @@
+meta:
+  version: 1
+  branch_policy: "work only on codex/* branches"
+  task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
+  commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
+  current_focus: "Phase A bootstrap and baseline quality automation"
+
+tasks:
+  - id: A0
+    title: "Bootstrap Codex operating model"
+    priority: 1
+    status: completed
+    depends_on: []
+    area: "repo-operations"
+    problem_statement: "Codex does not yet have durable repo-level memory, task selection, or acceptance criteria inside the repository."
+    root_cause_hypothesis: "Project instructions, architecture context, and acceptance standards are still conversational instead of repo-native."
+    definition_of_done:
+      - "AGENTS.md points to docs/codex as the source of truth"
+      - "PROJECT_BRIEF, SYSTEM_MAP, CONTRACTS, QUALITY_GATES, DECISIONS, RUNBOOK, and TASK_QUEUE exist"
+      - "A baseline CI workflow and local quality script exist"
+    validation_commands:
+      - "python scripts/quality_gate.py --profile python"
+    risk_level: "medium"
+    expected_files:
+      - "AGENTS.md"
+      - "docs/codex/*"
+      - "scripts/quality_gate.py"
+      - ".github/workflows/quality-gates.yml"
+    notes:
+      - "Bootstrap task completed by codex/lightrag operating model setup."
+
+  - id: A1
+    title: "Absorb active worktree into a documented engineering baseline"
+    priority: 2
+    status: pending
+    depends_on: [A0]
+    area: "baseline"
+    problem_statement: "The branch already contains local changes, but they are not yet summarized as the active engineering baseline."
+    root_cause_hypothesis: "The repo lacks a single documented snapshot of what changed before the larger optimization work begins."
+    definition_of_done:
+      - "Current local modifications are summarized in DECISIONS or a dedicated baseline note"
+      - "Bootstrap changes are committed separately from unrelated product changes"
+      - "The next task queue reflects the real baseline"
+    validation_commands:
+      - "git status --short --branch"
+    risk_level: "low"
+    expected_files:
+      - "docs/codex/DECISIONS.md"
+      - "docs/codex/TASK_QUEUE.yaml"
+    notes:
+      - "Do not revert unrelated user changes."
+
+  - id: B1
+    title: "Split lightrag/lightrag.py by orchestration responsibility"
+    priority: 3
+    status: pending
+    depends_on: [A1]
+    area: "core-engine"
+    problem_statement: "The main LightRAG orchestration file is too large and mixes multiple responsibilities."
+    root_cause_hypothesis: "Configuration, orchestration, storage wiring, and query flow evolved in one file without clear seams."
+    definition_of_done:
+      - "A smaller orchestration entrypoint remains"
+      - "At least one responsibility is extracted into a dedicated module with tests"
+      - "Contracts and migration notes are updated if public imports change"
+    validation_commands:
+      - "python -m ruff check lightrag tests scripts"
+      - "python -m pytest tests/test_chunking.py tests/test_write_json_optimization.py -m \"not integration\""
+    risk_level: "high"
+    expected_files:
+      - "lightrag/lightrag.py"
+      - "lightrag/*"
+      - "tests/*"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Prefer extraction over alias-heavy compatibility wrappers."
+
+  - id: B2
+    title: "Split lightrag/operate.py into retrieval and indexing modules"
+    priority: 4
+    status: pending
+    depends_on: [B1]
+    area: "core-engine"
+    problem_statement: "The operate module contains chunking, extraction, retrieval, and graph rebuild behavior in one place."
+    root_cause_hypothesis: "Pipeline steps accumulated without intermediate module boundaries."
+    definition_of_done:
+      - "Retrieval and indexing concerns live in separate modules"
+      - "Shared helpers move to explicit utility modules or protocols"
+      - "Touched behavior is covered by focused tests"
+    validation_commands:
+      - "python -m ruff check lightrag tests scripts"
+      - "python -m pytest tests/test_chunking.py tests/test_write_json_optimization.py -m \"not integration\""
+    risk_level: "high"
+    expected_files:
+      - "lightrag/operate.py"
+      - "lightrag/*"
+      - "tests/*"
+    notes:
+      - "Keep one closed-loop extraction per run."
+
+  - id: C1
+    title: "Define shared storage adapter contracts"
+    priority: 5
+    status: pending
+    depends_on: [B2]
+    area: "storage"
+    problem_statement: "Storage implementations diverge in initialization, error handling, and capability expression."
+    root_cause_hypothesis: "Adapters were added incrementally without a strict shared contract."
+    definition_of_done:
+      - "Common adapter expectations are explicit"
+      - "At least one contract-focused test suite exists for touched adapters"
+      - "Provider-specific duplication is reduced"
+    validation_commands:
+      - "python -m ruff check lightrag tests scripts"
+      - "python -m pytest tests/test_chunking.py tests/test_write_json_optimization.py -m \"not integration\""
+    risk_level: "high"
+    expected_files:
+      - "lightrag/kg/*"
+      - "tests/*"
+      - "docs/codex/CONTRACTS.md"
+    notes:
+      - "Target protocol clarity before broad implementation churn."
+
+  - id: D1
+    title: "Split API app factory and route composition"
+    priority: 6
+    status: pending
+    depends_on: [C1]
+    area: "api"
+    problem_statement: "The FastAPI entrypoint mixes startup concerns, config handling, and route composition."
+    root_cause_hypothesis: "App composition grew inside a single module."
+    definition_of_done:
+      - "App factory and route registration live in separate modules"
+      - "Auth and dependency setup are clearer"
+      - "Contracts reflect the new structure"
+    validation_commands:
+      - "python -m ruff check lightrag tests scripts"
+    risk_level: "high"
+    expected_files:
+      - "lightrag/api/lightrag_server.py"
+      - "lightrag/api/*"
+      - "docs/codex/CONTRACTS.md"
+    notes:
+      - "Protect externally visible route paths unless a migration is recorded."
+
+  - id: D2
+    title: "Trim Web UI to core user journeys"
+    priority: 7
+    status: pending
+    depends_on: [D1]
+    area: "webui"
+    problem_statement: "The Web UI needs clearer ownership of state and stronger focus on the core product flows."
+    root_cause_hypothesis: "Feature growth happened without a formal simplification pass."
+    definition_of_done:
+      - "Primary tabs and state flows are documented and simplified"
+      - "Unused or redundant UI paths are removed"
+      - "The app still builds cleanly"
+    validation_commands:
+      - "bun install --cwd lightrag_webui --frozen-lockfile"
+      - "bun run build --cwd lightrag_webui"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag_webui/src/*"
+      - "docs/codex/CONTRACTS.md"
+    notes:
+      - "Prefer user-journey clarity over sweeping visual redesign."
+
+  - id: E1
+    title: "Add performance benchmark harness and final acceptance report"
+    priority: 8
+    status: pending
+    depends_on: [D2]
+    area: "performance"
+    problem_statement: "The repo does not yet have a durable benchmark and acceptance reporting loop for the optimized architecture."
+    root_cause_hypothesis: "Performance checks and structural acceptance are still ad hoc."
+    definition_of_done:
+      - "Baseline benchmark commands are defined"
+      - "Performance results can be compared across iterations"
+      - "Final acceptance notes are documented"
+    validation_commands:
+      - "python scripts/quality_gate.py --profile phase-a"
+    risk_level: "medium"
+    expected_files:
+      - "docs/codex/QUALITY_GATES.md"
+      - "docs/codex/DECISIONS.md"
+      - "scripts/*"
+    notes:
+      - "This task closes the optimization program, not just a single code change."

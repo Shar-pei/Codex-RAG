@@ -1,48 +1,80 @@
 # Repository Guidelines
 
-LightRAG is an advanced Retrieval-Augmented Generation (RAG) framework designed to enhance information retrieval and generation through graph-based knowledge representation.
+LightRAG is a graph-based Retrieval-Augmented Generation system with three major surfaces:
+- `lightrag/`: core Python package and retrieval pipeline
+- `lightrag/api/`: FastAPI service and API composition layer
+- `lightrag_webui/`: Bun + React Web UI
 
-## Project Structure & Module Organization
-- `lightrag/`: Core Python package with orchestrators (`lightrag/lightrag.py`), storage adapters in `kg/`, LLM bindings in `llm/`, and helpers such as `operate.py` and `utils_*.py`.
-- `lightrag-api/`: FastAPI service (`lightrag_server.py`) with routers under `routers/` and Gunicorn launcher `run_with_gunicorn.py`.
-- `lightrag_webui/`: React 19 + TypeScript client driven by Bun + Vite; UI components live in `src/`.
-- Tests live in `tests/` and root-level `test_*.py`. Working datasets stay in `inputs/`, `rag_storage/`, `temp/`; deployment collateral lives in `docs/`, `k8s-deploy/`, and `docker-compose.yml`.
+This repository is in active root-cause optimization. Treat it as an evolving product plus platform, not as a patch-only maintenance branch.
 
-## Build, Test, and Development Commands
-- `python -m venv .venv && source .venv/bin/activate`: set up the Python runtime.
-- `pip install -e .` / `pip install -e .[api]`: install the package and API extras in editable mode.
-- `lightrag-server` or `uvicorn lightrag.api.lightrag_server:app --reload`: start the API locally; ensure `.env` is present.
-- `python -m pytest tests` (offline markers apply by default) or `python -m pytest tests --run-integration` / `python test_graph_storage.py`: run the full suite, opt into integration coverage, or target an individual script.
-- `ruff check .`: lint Python sources before committing.
-- `bun install`, `bun run dev`, `bun run build`, `bun test`: manage the web UI workflow (Bun is mandatory).
+## Source Of Truth
+- Read this file first.
+- Then read every file in `docs/codex/` before choosing work.
+- `docs/codex/TASK_QUEUE.yaml` is the single source of truth for what to do next.
+- `docs/codex/QUALITY_GATES.md` is the single source of truth for acceptance.
+- `docs/codex/DECISIONS.md` is the single source of truth for major refactor decisions and migration notes.
 
-## Coding Style & Naming Conventions
-- Backend code follow PEP 8 with four-space indentation, annotate functions, and reach for dataclasses when modelling state.
-- Use `lightrag.utils.logger` instead of `print`; respect logger configuration flags.
-- Extend storage or pipeline abstractions via `lightrag.base` and keep reusable helpers in the existing `utils_*.py`.
-- Python modules remain lowercase with underscores; React components use `PascalCase.tsx` and hooks-first patterns.
-- Front-end code should remain in TypeScript with two-space indentation, rely on functional React components with hooks, and follow Tailwind utility style.
+## Branch And Git Workflow
+- Work only on `codex/*` branches.
+- Never commit directly to `main`.
+- Before editing, check the current branch with `git branch --show-current`.
+- Before choosing work, check `git status --short --branch`.
+- Each run should complete at most one closed-loop task from `docs/codex/TASK_QUEUE.yaml`.
+- After finishing a task, run the required validation commands, update the Codex docs, commit only the intended files, and push the current branch.
+- Never rewrite history or delete branches unless explicitly requested.
 
-## Testing Guidelines
-- Keep pytest additions close to the code you touch (`tests/` mirrors feature folders and there are root-level `test_*.py` helpers); functions must start with `test_`.
-- Follow `tests/pytest.ini`: markers include `offline`, `integration`, `requires_db`, and `requires_api`, and the suite runs with `-m "not integration"` by default—pass `--run-integration` (or set `LIGHTRAG_RUN_INTEGRATION=true`) when external services are available.
-- Use the custom CLI toggles from `tests/conftest.py`: `--keep-artifacts`/`LIGHTRAG_KEEP_ARTIFACTS=true`, `--stress-test`/`LIGHTRAG_STRESS_TEST=true`, and `--test-workers N`/`LIGHTRAG_TEST_WORKERS` to dial up workloads or preserve temp files during investigations.
-- Export other required `LIGHTRAG_*` environment variables before running integration or storage tests so adapters can reach configured backends.
-- For UI updates, pair changes with Vitest specs and run `bun test`.
+## Working Principles
+- Optimize for root-cause fixes, not surface patches.
+- Prefer structural simplification over local workarounds.
+- Keep modules single-purpose and reduce hidden coupling.
+- Preserve user changes you did not make.
+- Do not revert unrelated local edits.
+- Document breaking changes, migrations, and architecture shifts in `docs/codex/DECISIONS.md`.
+- If a task definition is incomplete, improve the task docs first instead of making blind code changes.
 
-## Commit & Pull Request Guidelines
-- Use concise, imperative commit subjects (e.g., `Fix lock key normalization`) and add body context only when necessary.
-- PRs should include a summary, operational impact, linked issues, and screenshots or API samples for user-facing work.
-- Verify `ruff check .`, `python -m pytest`, and affected Bun commands succeed before requesting review; note the runs in the PR text.
+## Standard Codex Loop
+1. Read `AGENTS.md` and every file in `docs/codex/`.
+2. Inspect branch, remote tracking, and worktree status.
+3. Select the highest-priority task in `docs/codex/TASK_QUEUE.yaml` that is not blocked.
+4. Perform root-cause analysis before editing code.
+5. Make the smallest complete structural change that closes the task.
+6. Run the task's validation commands.
+7. Update `docs/codex/TASK_QUEUE.yaml`, `docs/codex/DECISIONS.md`, and any impacted contract docs.
+8. Commit and push the current `codex/*` branch.
 
-## Security & Configuration Tips
-- Copy `.env.example` and `config.ini.example`; never commit secrets or real connection strings.
-- Configure storage backends through `LIGHTRAG_*` variables and validate them with `docker-compose` services when needed.
-- Treat `lightrag.log*` as local artefacts; purge sensitive information before sharing logs or outputs.
+## Project Structure
+- `lightrag/lightrag.py` and `lightrag/operate.py` are current refactor hotspots due to size and responsibility overlap.
+- `lightrag/kg/` and `lightrag/llm/` contain adapter implementations that should converge on explicit contracts over time.
+- `lightrag/api/lightrag_server.py` is the main API composition hotspot.
+- `tests/` contains the main pytest suite. Root-level `test_*.py` files are legacy helpers and should be rationalized over time.
+- `docs/` contains product and deployment documentation.
+- `scripts/` is reserved for repo maintenance, validation, and automation helpers.
 
-## Automation & Agent Workflow
-- Use repo-relative `workdir` arguments for every shell command and prefer `rg`/`rg --files` for searches since they are faster under the CLI harness.
-- Default edits to ASCII, rely on `apply_patch` for single-file changes, and only add concise comments that aid comprehension of complex logic.
-- Honor existing local modifications; never revert or discard user changes (especially via `git reset --hard`) unless explicitly asked.
-- Follow the planning tool guidance: skip it for trivial fixes, but provide multi-step plans for non-trivial work and keep the plan updated as steps progress.
-- Validate changes by running the relevant `ruff`/`pytest`/`bun test` commands whenever feasible, and describe any unrun checks with follow-up guidance.
+## Build And Validation Commands
+- Python environment: `pip install -e .` or `pip install -e ".[api]"`
+- API server: `lightrag-server`
+- Python tests: `python -m pytest tests`
+- Bootstrap Python gate: `python scripts/quality_gate.py --profile python`
+- Future full-repo lint target: `python -m ruff check lightrag tests scripts`
+- Web UI install: `bun install --cwd lightrag_webui --frozen-lockfile`
+- Web UI build: `bun run build --cwd lightrag_webui`
+- Phase A quality baseline: `python scripts/quality_gate.py --profile phase-a`
+
+## Editing Constraints
+- Use ASCII unless a file already depends on Unicode content.
+- Use `apply_patch` for manual edits.
+- Add comments only when they explain non-obvious logic.
+- Prefer targeted edits that clarify architecture boundaries.
+- Never add temporary compatibility layers without documenting removal criteria.
+
+## Safety Rules
+- Do not commit secrets, `.env`, local logs, or private model assets.
+- Do not change production credentials or machine-specific paths unless the task explicitly requires it.
+- Do not bypass validation before commit.
+- Do not perform destructive git commands such as `git reset --hard` or `git checkout --` unless explicitly requested.
+
+## Automation Rules
+- Automation runs must behave exactly like manual runs.
+- One automation run should complete one task, not a grab bag of fixes.
+- Automation may perform breaking refactors only if it also updates `docs/codex/DECISIONS.md` and the affected contract docs.
+- If a required tool is missing or validation cannot run, record the blocker in `docs/codex/DECISIONS.md` and stop after leaving the repo in a clean, explainable state.
