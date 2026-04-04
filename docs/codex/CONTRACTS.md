@@ -111,5 +111,15 @@ Current `config.ini.example` has sections for:
   - `Dockerfile.lite`
   - `docker-compose.yml`
 
+## Storage Adapter Workspace Contract
+- Workspace-aware adapters normalize workspace candidates by trimming whitespace and selecting the first non-empty value from their documented precedence chain.
+- After resolution, the adapter instance keeps the resolved value on `self.workspace` so later initialization and logging use the same workspace identity.
+- Current precedence chains for the active storage stack are:
+  - PostgreSQL storages: `PostgreSQLDB.workspace`, then adapter `workspace`, then `"default"`
+  - Chroma vector storage: `CHROMA_WORKSPACE`, then adapter `workspace`, then `WORKSPACE`, then `"default"`
+  - Neo4j graph storage: `NEO4J_WORKSPACE`, then adapter `workspace`, then `"base"`
+- Provider-specific derived names such as Chroma collection names or PostgreSQL AGE graph names must be based on the resolved workspace instead of re-running provider-specific fallback logic later.
+- Contract coverage for this rule lives in `tests/test_storage_contracts.py`.
+
 ## Migration Rule
 Any future breaking change to these surfaces must update this file and `docs/codex/DECISIONS.md` in the same change set.

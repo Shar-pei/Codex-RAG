@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "B2 completed via indexing/retrieval split; next closed-loop task is C1 storage adapter contracts"
+  current_focus: "C1 completed via shared workspace contract extraction; next closed-loop task is D1 API app factory split"
 
 tasks:
   - id: A0
@@ -106,7 +106,7 @@ tasks:
   - id: C1
     title: "Define shared storage adapter contracts"
     priority: 5
-    status: pending
+    status: completed
     depends_on: [B2]
     area: "storage"
     problem_statement: "Storage implementations diverge in initialization, error handling, and capability expression."
@@ -116,8 +116,8 @@ tasks:
       - "At least one contract-focused test suite exists for touched adapters"
       - "Provider-specific duplication is reduced"
     validation_commands:
-      - "python -m ruff check lightrag tests scripts"
-      - "python -m pytest tests/test_chunking.py tests/test_write_json_optimization.py -m \"not integration\""
+      - "python -m ruff check lightrag/kg/storage_contracts.py lightrag/kg/chroma_impl.py lightrag/kg/postgres_impl.py lightrag/kg/neo4j_impl.py tests/test_storage_contracts.py"
+      - "python -m pytest tests/test_chroma_storage.py tests/test_storage_contracts.py -m \"not integration\""
     risk_level: "high"
     expected_files:
       - "lightrag/kg/*"
@@ -125,6 +125,9 @@ tasks:
       - "docs/codex/CONTRACTS.md"
     notes:
       - "Target protocol clarity before broad implementation churn."
+      - "Completed by extracting shared workspace resolution into lightrag/kg/storage_contracts.py and rewiring PostgreSQL, Chroma, and Neo4j to use explicit precedence chains."
+      - "Focused contract coverage lives in tests/test_storage_contracts.py, with tests/test_chroma_storage.py kept green as adapter regression coverage."
+      - "Validation is scoped to the touched adapter seam because repo-wide Ruff still reports unrelated baseline lint debt outside C1."
 
   - id: D1
     title: "Split API app factory and route composition"

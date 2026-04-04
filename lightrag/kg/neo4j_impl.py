@@ -17,6 +17,7 @@ from ..utils import logger
 from ..base import BaseGraphStorage
 from ..types import KnowledgeGraph, KnowledgeGraphNode, KnowledgeGraphEdge
 from ..kg.shared_storage import get_data_init_lock
+from ..kg.storage_contracts import resolve_storage_workspace
 import pipmaster as pm
 
 if not pm.is_installed("neo4j"):
@@ -65,14 +66,11 @@ READ_RETRY = retry(
 @dataclass
 class Neo4JStorage(BaseGraphStorage):
     def __init__(self, namespace, global_config, embedding_func, workspace=None):
-        # Read env and override the arg if present
-        neo4j_workspace = os.environ.get("NEO4J_WORKSPACE")
-        if neo4j_workspace and neo4j_workspace.strip():
-            workspace = neo4j_workspace
-
-        # Default to 'base' when both arg and env are empty
-        if not workspace or not str(workspace).strip():
-            workspace = "base"
+        workspace = resolve_storage_workspace(
+            os.environ.get("NEO4J_WORKSPACE"),
+            workspace,
+            default="base",
+        )
 
         super().__init__(
             namespace=namespace,

@@ -135,3 +135,20 @@
 - Impact:
   - `origin/codex/lightrag` now includes the validated B1 storage-wiring extraction.
   - Subsequent runs can proceed directly from the task queue instead of retrying the old push step.
+
+## DCR-011: C1 standardizes workspace resolution as the first shared adapter contract
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - The active storage baseline uses PostgreSQL, Chroma, and Neo4j adapters, but each backend had drifted into its own workspace precedence rules and normalization code.
+  - PostgreSQL repeated the same `db.workspace -> self.workspace -> "default"` logic in four separate storage classes.
+  - Chroma resolved its effective workspace separately from `self.workspace`, which risked logging and metadata disagreeing about which workspace was active when environment overrides were used.
+  - Neo4j used the same conceptual override rule as Chroma but with its own inline implementation and a different default (`"base"`).
+- Decision:
+  - Introduce `lightrag/kg/storage_contracts.py` with a shared `resolve_storage_workspace(...)` helper that returns the first non-empty trimmed workspace candidate.
+  - Rewire PostgreSQL, Chroma, and Neo4j to express their precedence chains through that helper instead of duplicating backend-local normalization logic.
+  - Treat workspace resolution as the explicit `C1` contract boundary for the current storage refactor pass rather than broadening this run into capability or error-model unification.
+- Impact:
+  - Workspace precedence is now documented once, tested once, and reused across the active storage adapters.
+  - Chroma now keeps the resolved workspace on `self.workspace`, which makes its collection metadata, logs, and adapter state agree when provider overrides are present.
+  - Validation for `C1` stays scoped to the touched adapter seam because repo-wide Ruff still includes unrelated baseline lint debt outside this task.

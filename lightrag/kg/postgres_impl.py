@@ -34,6 +34,7 @@ from ..base import (
 from ..namespace import NameSpace, is_namespace
 from ..utils import logger
 from ..kg.shared_storage import get_data_init_lock
+from ..kg.storage_contracts import resolve_storage_workspace
 
 import pipmaster as pm
 
@@ -1702,16 +1703,11 @@ class PGKVStorage(BaseKVStorage):
             if self.db is None:
                 self.db = await ClientManager.get_client()
 
-            # Implement workspace priority: PostgreSQLDB.workspace > self.workspace > "default"
-            if self.db.workspace:
-                # Use PostgreSQLDB's workspace (highest priority)
-                self.workspace = self.db.workspace
-            elif hasattr(self, "workspace") and self.workspace:
-                # Use storage class's workspace (medium priority)
-                pass
-            else:
-                # Use "default" for compatibility (lowest priority)
-                self.workspace = "default"
+            self.workspace = resolve_storage_workspace(
+                self.db.workspace,
+                self.workspace,
+                default="default",
+            )
 
     async def finalize(self):
         if self.db is not None:
@@ -2195,16 +2191,11 @@ class PGVectorStorage(BaseVectorStorage):
             if self.db is None:
                 self.db = await ClientManager.get_client()
 
-            # Implement workspace priority: PostgreSQLDB.workspace > self.workspace > "default"
-            if self.db.workspace:
-                # Use PostgreSQLDB's workspace (highest priority)
-                self.workspace = self.db.workspace
-            elif hasattr(self, "workspace") and self.workspace:
-                # Use storage class's workspace (medium priority)
-                pass
-            else:
-                # Use "default" for compatibility (lowest priority)
-                self.workspace = "default"
+            self.workspace = resolve_storage_workspace(
+                self.db.workspace,
+                self.workspace,
+                default="default",
+            )
 
     async def finalize(self):
         if self.db is not None:
@@ -2582,16 +2573,11 @@ class PGDocStatusStorage(DocStatusStorage):
             if self.db is None:
                 self.db = await ClientManager.get_client()
 
-            # Implement workspace priority: PostgreSQLDB.workspace > self.workspace > "default"
-            if self.db.workspace:
-                # Use PostgreSQLDB's workspace (highest priority)
-                self.workspace = self.db.workspace
-            elif hasattr(self, "workspace") and self.workspace:
-                # Use storage class's workspace (medium priority)
-                pass
-            else:
-                # Use "default" for compatibility (lowest priority)
-                self.workspace = "default"
+            self.workspace = resolve_storage_workspace(
+                self.db.workspace,
+                self.workspace,
+                default="default",
+            )
 
     async def finalize(self):
         if self.db is not None:
@@ -3260,16 +3246,11 @@ class PGGraphStorage(BaseGraphStorage):
             if self.db is None:
                 self.db = await ClientManager.get_client()
 
-            # Implement workspace priority: PostgreSQLDB.workspace > self.workspace > "default"
-            if self.db.workspace:
-                # Use PostgreSQLDB's workspace (highest priority)
-                self.workspace = self.db.workspace
-            elif hasattr(self, "workspace") and self.workspace:
-                # Use storage class's workspace (medium priority)
-                pass
-            else:
-                # Use "default" for compatibility (lowest priority)
-                self.workspace = "default"
+            self.workspace = resolve_storage_workspace(
+                self.db.workspace,
+                self.workspace,
+                default="default",
+            )
 
             # Dynamically generate graph name based on workspace
             self.graph_name = self._get_workspace_graph_name()
