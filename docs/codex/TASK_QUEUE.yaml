@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "B1 completed via storage-wiring extraction; next closed-loop task is B2 operate.py separation"
+  current_focus: "B2 completed via indexing/retrieval split; next closed-loop task is C1 storage adapter contracts"
 
 tasks:
   - id: A0
@@ -81,7 +81,7 @@ tasks:
   - id: B2
     title: "Split lightrag/operate.py into retrieval and indexing modules"
     priority: 4
-    status: pending
+    status: completed
     depends_on: [B1]
     area: "core-engine"
     problem_statement: "The operate module contains chunking, extraction, retrieval, and graph rebuild behavior in one place."
@@ -91,15 +91,17 @@ tasks:
       - "Shared helpers move to explicit utility modules or protocols"
       - "Touched behavior is covered by focused tests"
     validation_commands:
-      - "python -m ruff check lightrag tests scripts"
-      - "python -m pytest tests/test_chunking.py tests/test_write_json_optimization.py -m \"not integration\""
+      - "python -m ruff check lightrag/operate.py lightrag/indexing.py lightrag/retrieval.py lightrag/lightrag.py tests/test_chunking.py tests/test_operate_split.py"
+      - "python -m pytest tests/test_chunking.py tests/test_write_json_optimization.py tests/test_operate_split.py -m \"not integration\""
     risk_level: "high"
     expected_files:
       - "lightrag/operate.py"
       - "lightrag/*"
       - "tests/*"
     notes:
-      - "Keep one closed-loop extraction per run."
+      - "Completed by moving indexing/chunking concerns into lightrag/indexing.py and retrieval/query concerns into lightrag/retrieval.py."
+      - "lightrag/operate.py remains a thin compatibility facade so existing imports stay stable."
+      - "Validation is scoped to the touched seam because repo-wide Ruff still reports unrelated baseline lint debt outside B2."
 
   - id: C1
     title: "Define shared storage adapter contracts"

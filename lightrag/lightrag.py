@@ -81,13 +81,13 @@ from lightrag.base import (
     OllamaServerInfos,
     QueryResult,
 )
-from lightrag.operate import (
+from lightrag.indexing import (
     extract_entities,
     merge_nodes_and_edges,
-    kg_query,
-    naive_query,
-    rebuild_knowledge_from_chunks, semantic_chunking_by_token_size,
+    rebuild_knowledge_from_chunks,
+    semantic_chunking_by_token_size,
 )
+from lightrag.retrieval import kg_query, naive_query
 from lightrag.constants import GRAPH_FIELD_SEP
 from lightrag.storage_wiring import build_storage_bundle, build_storage_factories
 from lightrag.utils import (

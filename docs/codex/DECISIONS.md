@@ -91,3 +91,47 @@
 - Impact:
   - `B1` can complete with a clean, reviewable storage-wiring extraction and focused regression coverage.
   - Future tasks should avoid broadening scope solely to satisfy unrelated baseline lint failures unless the task explicitly targets lint debt.
+
+## DCR-008: Push of the validated B1 commit is blocked by outbound GitHub connectivity
+- Date: 2026-04-05
+- Status: blocked
+- Context:
+  - `B1` has been validated locally and committed as `67fc1ce` on `codex/lightrag`.
+  - Two consecutive push attempts to `origin` failed after commit creation:
+    - `Recv failure: Connection was reset`
+    - `Failed to connect to github.com port 443 after 21101 ms`
+- Decision:
+  - Leave the validated commit in local history and stop without rewriting it.
+  - Resume by retrying `git push origin codex/lightrag` once outbound GitHub connectivity is available again.
+- Impact:
+  - The repository is left in a recoverable state with one local commit ahead of `origin/codex/lightrag`.
+  - The next run does not need to re-implement `B1`; it only needs to push the existing commit if the network path is healthy.
+
+## DCR-009: `operate.py` is now a compatibility facade over dedicated indexing and retrieval modules
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - `lightrag/operate.py` had accumulated chunking, extraction, graph rebuild, retrieval, and query-context assembly in one large module.
+  - The strongest seam is between indexing work (`chunking`, extraction, graph rebuild, merge) and retrieval work (`kg_query`, `naive_query`, query-context helpers).
+  - Existing callers such as `lightrag.lightrag`, `lightrag.api.lightrag_server`, and tests still import symbols from `lightrag.operate`.
+- Decision:
+  - Move indexing concerns into `lightrag/indexing.py`.
+  - Move retrieval concerns into `lightrag/retrieval.py`.
+  - Keep `lightrag/operate.py` as a thin compatibility facade that re-exports the public functions from those new modules.
+  - Point `lightrag.lightrag` directly at `lightrag.indexing` and `lightrag.retrieval` so the new boundaries are authoritative internally.
+- Impact:
+  - Retrieval and indexing now live in separate modules without breaking the existing `lightrag.operate` import surface.
+  - Future refactors can simplify indexing and retrieval independently instead of continuing to grow a single hotspot module.
+
+## DCR-010: Outbound GitHub connectivity recovered and the queued B1 commit was pushed
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - DCR-008 recorded a transient transport failure while pushing `67fc1ce` to `origin`.
+  - A later retry of `git push origin codex/lightrag` succeeded from the same branch and remote.
+- Decision:
+  - Treat DCR-008 as a historical transport incident, not an active blocker.
+  - Continue follow-on task work on top of the now-pushed `codex/lightrag` branch tip.
+- Impact:
+  - `origin/codex/lightrag` now includes the validated B1 storage-wiring extraction.
+  - Subsequent runs can proceed directly from the task queue instead of retrying the old push step.
