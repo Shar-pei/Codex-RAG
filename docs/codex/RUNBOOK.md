@@ -5,6 +5,11 @@ Use this prompt to continue work in a new Codex thread:
 
 `Please follow AGENTS.md and docs/codex, continue the highest-priority task in docs/codex/TASK_QUEUE.yaml, perform root-cause analysis first, then make the smallest complete refactor, validate it, update the Codex docs, and push the current codex branch.`
 
+## Short New-Thread Prompt
+If you want the shortest possible restart instruction, use:
+
+`In D:\MyCodeX\MyRAG\LightRAG, read AGENTS.md and docs/codex, inspect git status and the task queue, then continue the highest-priority unblocked task, validate it, and push the current codex branch.`
+
 ## Standard Run Steps
 1. Confirm the workdir is `D:\MyCodeX\MyRAG\LightRAG`.
 2. Read `AGENTS.md` and every file in `docs/codex/`.
@@ -53,3 +58,25 @@ Stop and document the blocker if:
 - the task definition is too vague to execute safely
 - unrelated local changes make the intended edit ambiguous
 - validation cannot run and the reason is not obvious
+
+## Interruption Recovery
+
+### If Codex quota runs out
+1. Open a new thread in `D:\MyCodeX\MyRAG\LightRAG`.
+2. Re-read `AGENTS.md` and all files in `docs/codex/`.
+3. Run:
+   - `git branch --show-current`
+   - `git status --short --branch`
+   - `git log --oneline -5`
+4. Read `docs/codex/TASK_QUEUE.yaml` and `docs/codex/DECISIONS.md`.
+5. Continue the highest-priority unblocked task, or document the blocker first if the worktree is ambiguous.
+
+### If the computer was shut down
+1. Reopen the repo in a new thread.
+2. Assume only committed and pushed work is guaranteed durable.
+3. Check whether there are local uncommitted changes before doing anything else.
+4. If local changes exist, understand them before editing.
+5. If the worktree is clean, continue from the queue normally.
+
+### Recovery Goal
+Every run should leave enough repo state behind that a brand-new thread can continue without needing the old chat transcript.

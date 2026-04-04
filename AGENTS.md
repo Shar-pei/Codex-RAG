@@ -23,6 +23,16 @@ This repository is in active root-cause optimization. Treat it as an evolving pr
 - After finishing a task, run the required validation commands, update the Codex docs, commit only the intended files, and push the current branch.
 - Never rewrite history or delete branches unless explicitly requested.
 
+## Continuation And Recovery
+- A new Codex thread does not need the old conversation history if it starts in `D:\MyCodeX\MyRAG\LightRAG` and reads `AGENTS.md` plus every file in `docs/codex/`.
+- If quota is exhausted, the next thread should inspect `git status --short --branch`, `git log --oneline -5`, and `docs/codex/TASK_QUEUE.yaml`, then continue from the highest-priority valid task.
+- If the machine shuts down, assume only committed and pushed work is durable. Resume by reopening the repo, checking the current branch, and continuing from the queue.
+- Prefer small closed-loop tasks so interruptions never strand large unreviewable diffs.
+- Before ending any substantial run, try to leave behind one of these recoverable states:
+  - validated, committed, and pushed work
+  - uncommitted but clearly scoped local changes plus updated task notes
+  - a documented blocker in `docs/codex/DECISIONS.md`
+
 ## Working Principles
 - Optimize for root-cause fixes, not surface patches.
 - Prefer structural simplification over local workarounds.
@@ -78,3 +88,4 @@ This repository is in active root-cause optimization. Treat it as an evolving pr
 - One automation run should complete one task, not a grab bag of fixes.
 - Automation may perform breaking refactors only if it also updates `docs/codex/DECISIONS.md` and the affected contract docs.
 - If a required tool is missing or validation cannot run, record the blocker in `docs/codex/DECISIONS.md` and stop after leaving the repo in a clean, explainable state.
+- Automation is not assumed to survive local quota exhaustion or a powered-off machine; design every run so the next run can resume from repo state alone.
