@@ -1187,3 +1187,19 @@
   - `lightrag_server.py` sheds another narrow config-assembly block and moves incrementally closer to pure app assembly plus runtime wiring.
   - The extracted seam now has focused regression coverage for explicit runtime values and env-driven fallback behavior in `tests/test_ollama_server_info.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-076: BM1 moves runtime model timeout loading behind a helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BL1`, `lightrag/api/lightrag_server.py` still loaded `LLM_TIMEOUT` and `EMBEDDING_TIMEOUT` inline before building the model callables.
+  - Those values depend only on `get_env_value(...)` plus the shared timeout constants.
+  - Keeping this lookup in `create_app()` left another small but distinct runtime-configuration rule inside the app-factory module.
+- Decision:
+  - Introduce `lightrag/api/runtime_model_timeouts.py` with `build_runtime_model_timeouts()` as the authoritative helper for LLM and embedding timeout loading.
+  - Rewire `lightrag/api/lightrag_server.py` to consume that helper instead of reading both timeout env vars inline.
+  - Preserve the existing default and env-override behavior without widening this run into the larger `LightRAG` constructor extraction.
+- Impact:
+  - `lightrag_server.py` sheds another narrow runtime-config block and moves incrementally closer to pure app assembly plus runtime wiring.
+  - The extracted seam now has focused regression coverage for default and env-driven timeout resolution in `tests/test_runtime_model_timeouts.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.

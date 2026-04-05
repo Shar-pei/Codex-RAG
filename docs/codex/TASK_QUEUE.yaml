@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after BL1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after BM1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1776,3 +1776,31 @@ tasks:
       - "Queued after BK1 root-cause analysis showed the next narrow config-assembly seam in `create_app()` is the inline `OllamaServerInfos` construction rather than the larger LightRAG constructor."
       - "Completed by introducing lightrag/api/ollama_server_info.py and rewiring lightrag_server.py to call `build_ollama_server_infos(args)`."
       - "Focused regression coverage lives in tests/test_ollama_server_info.py."
+
+  - id: BM1
+    title: "Extract runtime model timeout loading from lightrag_server.py"
+    priority: 68
+    status: completed
+    depends_on: [BL1]
+    area: "api"
+    problem_statement: "After `BL1`, the FastAPI server entrypoint still loads `LLM_TIMEOUT` and `EMBEDDING_TIMEOUT` inline, so app construction still owns one runtime timeout configuration seam."
+    root_cause_hypothesis: "The LLM and embedding timeout values depend only on `get_env_value(...)` plus the timeout constants, so this runtime-timeout contract belongs in a dedicated helper rather than remaining embedded in `create_app()`."
+    definition_of_done:
+      - "A dedicated helper module owns runtime LLM and embedding timeout loading"
+      - "`lightrag_server.py` uses that helper instead of loading both timeout env vars inline"
+      - "The existing default and env-override behavior remain unchanged"
+      - "Focused tests cover default and env-driven timeout resolution"
+    validation_commands:
+      - "python -m ruff check lightrag/api/runtime_model_timeouts.py lightrag/api/lightrag_server.py tests/test_runtime_model_timeouts.py"
+      - "python -m pytest tests/test_runtime_model_timeouts.py -q"
+    risk_level: "low"
+    expected_files:
+      - "lightrag/api/runtime_model_timeouts.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_runtime_model_timeouts.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BL1 root-cause analysis showed the next narrow config seam in `create_app()` is the inline timeout loading block rather than the larger LightRAG constructor."
+      - "Completed by introducing lightrag/api/runtime_model_timeouts.py and rewiring lightrag_server.py to consume `build_runtime_model_timeouts()`."
+      - "Focused regression coverage lives in tests/test_runtime_model_timeouts.py."

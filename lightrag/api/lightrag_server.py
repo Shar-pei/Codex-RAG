@@ -28,6 +28,7 @@ from lightrag.api.query_validation_handlers import (
     create_query_validation_exception_handler,
 )
 from lightrag.api.rerank_model_factory import build_rerank_model_func
+from lightrag.api.runtime_model_timeouts import build_runtime_model_timeouts
 from lightrag.api.utils_api import display_splash_screen, check_env_file
 from .config import (
     global_args,
@@ -42,8 +43,6 @@ from lightrag.constants import (
     DEFAULT_LOG_MAX_BYTES,
     DEFAULT_LOG_BACKUP_COUNT,
     DEFAULT_LOG_FILENAME,
-    DEFAULT_LLM_TIMEOUT,
-    DEFAULT_EMBEDDING_TIMEOUT,
 )
 from lightrag.utils import logger, set_verbose_debug
 
@@ -77,10 +76,9 @@ def create_app(args):
     # Create working directory if it doesn't exist
     Path(args.working_dir).mkdir(parents=True, exist_ok=True)
 
-    llm_timeout = get_env_value("LLM_TIMEOUT", DEFAULT_LLM_TIMEOUT, int)
-    embedding_timeout = get_env_value(
-        "EMBEDDING_TIMEOUT", DEFAULT_EMBEDDING_TIMEOUT, int
-    )
+    timeouts = build_runtime_model_timeouts()
+    llm_timeout = timeouts.llm_timeout
+    embedding_timeout = timeouts.embedding_timeout
 
     # Create the EmbeddingFunc instance (now returns complete EmbeddingFunc with max_token_size)
     embedding_func = build_embedding_func(
