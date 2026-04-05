@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "S1 completed by extracting ingestion command helpers out of document_routes.py, leaving the router close to a pure route-composition layer"
+  current_focus: "T1 completed by extracting query API models out of query_routes.py, reducing the largest active router's mixed model-and-route responsibility"
 
 tasks:
   - id: A0
@@ -568,3 +568,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving scan startup, file upload, and text insertion helpers into lightrag/api/routers/document_ingest_commands.py while keeping document_routes.py as the compatibility import surface."
+
+  - id: T1
+    title: "Extract query API models from query_routes.py"
+    priority: 23
+    status: completed
+    depends_on: [S1]
+    area: "api"
+    problem_statement: "The query API router still mixes large request/response schema declarations with route implementation in the largest active API router module."
+    root_cause_hypothesis: "Query contracts accumulated directly inside query_routes.py because the router became the default home for both API models and query handlers, even though the models do not depend on route state."
+    definition_of_done:
+      - "Query request and response models live in a dedicated module"
+      - "query_routes.py preserves the existing import surface through compatibility imports"
+      - "Focused tests cover model re-exports and key QueryRequest behaviors"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/query_routes.py lightrag/api/routers/query_models.py tests/test_query_models.py"
+      - "python -m pytest tests/test_query_models.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/query_routes.py"
+      - "lightrag/api/routers/query_models.py"
+      - "tests/test_query_models.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving QueryRequest, QueryResponse, QueryDataResponse, StreamChunkResponse, and related response models into lightrag/api/routers/query_models.py while keeping query_routes.py as the compatibility import surface."

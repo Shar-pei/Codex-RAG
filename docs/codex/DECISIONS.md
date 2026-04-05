@@ -473,3 +473,19 @@
   - `document_routes.py` sheds the last large ingestion orchestration block and moves close to a pure route-composition layer.
   - Ingestion behavior now has direct regression tests for scan scheduling, duplicate detection, and text enqueue startup without importing the full router.
   - Follow-on API work can shift away from document_routes splitting and target broader route composition or other hotspots.
+
+## DCR-031: T1 moves query API models behind a query-model seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After the document-route cleanup series, `lightrag/api/routers/query_routes.py` became the largest active API router module and still opened with a long block of Pydantic request/response models before any route definitions.
+  - `QueryRequest`, `ReferenceItem`, `QueryResponse`, `QueryDataResponse`, and `StreamChunkResponse` define the query API contract and include validation/conversion rules such as `conversation_history` role checks and `to_query_params(...)`.
+  - Those models do not depend on FastAPI route state, so keeping them inline makes the router responsible for both API contracts and route execution.
+- Decision:
+  - Introduce `lightrag/api/routers/query_models.py` for the query request/response models and `QueryRequest.to_query_params(...)`.
+  - Import those models back into `lightrag/api/routers/query_routes.py` so existing imports from `query_routes` remain stable.
+  - Keep route handlers and OpenAPI response examples in `query_routes.py` for now instead of widening this run into a full router decomposition.
+- Impact:
+  - `query_routes.py` sheds a self-contained contract block and moves toward a clearer routing focus.
+  - Query model validation and conversion rules now have focused regression coverage without importing the full query router.
+  - A follow-on task can target route helper extraction or response-example cleanup separately from the query API contracts.
