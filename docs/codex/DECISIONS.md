@@ -283,3 +283,17 @@
   - The active API and storage modules now share one dependency-bootstrap boundary instead of duplicating `pipmaster` import logic.
   - Source checkouts no longer need a tracked repo-root shim to explain how the supported runtime surface handles a missing `pipmaster` package.
   - Focused tests in `tests/test_pipmaster_fallback.py` now lock the helper behavior for both installed and fallback paths.
+
+## DCR-019: H1 treats the repo-root pipmaster shim as a local artifact, not pending product work
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `G1`, `git status --short --branch` still reported a single untracked file: `pipmaster.py` at the repository root.
+  - The supported runtime surface now uses `lightrag/_pipmaster.py`, so the root-level shim is no longer part of the product path Codex just validated.
+  - Deleting an untracked local file would be a destructive workspace action, while leaving it unignored would keep every follow-on thread starting from a misleading dirty worktree.
+- Decision:
+  - Add an explicit ignore rule for the repo-root `pipmaster.py` shim.
+  - Treat that file as a local runtime-recovery artifact rather than a pending source change that belongs in version control.
+- Impact:
+  - Standard `git status` output returns to a clean baseline after `G1` without deleting anything from the user's machine.
+  - Future Codex runs can trust that a dirty worktree signals real pending work instead of a leftover local shim.

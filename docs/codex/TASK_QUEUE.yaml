@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "G1 completed via a shared pipmaster fallback loader on the supported runtime surface; the active API and storage modules no longer rely on scattered pipmaster imports or a repo-root shim"
+  current_focus: "H1 completed by classifying the repo-root pipmaster shim as a local runtime artifact and ignoring it, so the codex/lightrag worktree returns to an explainable baseline after G1"
 
 tasks:
   - id: A0
@@ -269,3 +269,26 @@ tasks:
       - "Keep scope on the supported runtime surface defined by the current contracts instead of sweeping every legacy adapter in one run."
       - "Completed by adding lightrag/_pipmaster.py as the shared import-or-install boundary and rewiring the active API, PostgreSQL, Chroma, and Neo4j modules to use it."
       - "Focused regression coverage lives in tests/test_pipmaster_fallback.py."
+
+  - id: H1
+    title: "Absorb the repo-root pipmaster shim as a local runtime artifact"
+    priority: 11
+    status: completed
+    depends_on: [G1]
+    area: "repo-hygiene"
+    problem_statement: "After G1, the only remaining dirty-worktree artifact is an untracked repo-root `pipmaster.py` shim that is no longer part of the supported runtime path."
+    root_cause_hypothesis: "The repository had no explicit ignore rule for the temporary root-level compatibility shim, so local runtime recovery artifacts still appeared as unexplained worktree changes."
+    definition_of_done:
+      - "The repo-root `pipmaster.py` shim is classified as a local artifact rather than pending product work"
+      - "The standard worktree status is clean after the ignore rule is in place"
+      - "Codex docs record why the ignore rule exists"
+    validation_commands:
+      - "git check-ignore -v pipmaster.py"
+      - "git status --short --branch"
+    risk_level: "low"
+    expected_files:
+      - ".gitignore"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by ignoring the obsolete repo-root pipmaster shim instead of deleting a local file from the user's machine."

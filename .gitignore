@@ -64,6 +64,7 @@ ignore_this.txt
 /dickens*/
 /book.txt
 download_models_hf.py
+/pipmaster.py
 
 # Frontend build output (built during PyPI release)
 /lightrag/api/webui/
