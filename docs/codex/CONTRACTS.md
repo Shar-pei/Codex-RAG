@@ -88,6 +88,12 @@ Current `env.example` exposes these major configuration groups:
   - `CHROMA_*`
 - Neo4j:
   - `NEO4J_*`
+- Supported runtime storage selections are currently frozen to:
+  - `LIGHTRAG_KV_STORAGE=PGKVStorage`
+  - `LIGHTRAG_DOC_STATUS_STORAGE=PGDocStatusStorage`
+  - `LIGHTRAG_VECTOR_STORAGE=ChromaVectorDBStorage`
+  - `LIGHTRAG_GRAPH_STORAGE=Neo4JStorage`
+- Legacy adapter modules may still exist in `lightrag/kg/`, but they are now treated as internal or migration-only code paths rather than part of the supported runtime selection contract.
 
 ### INI Configuration
 Current `config.ini.example` has sections for:
@@ -114,6 +120,15 @@ Current `config.ini.example` has sections for:
   - `Dockerfile`
   - `Dockerfile.lite`
   - `docker-compose.yml`
+- The default compose topology now assumes one `postgres`, one `chroma`, and one `neo4j` service alongside the `lightrag` app container.
+
+## Migration Surface
+- Legacy local storage created with `JsonKVStorage + JsonDocStatusStorage + NanoVectorDBStorage + NetworkXStorage` can be migrated with:
+  - `python -m lightrag.tools.migrate_to_pg_chroma_neo4j --working-dir ./rag_storage`
+- The migration contract is:
+  - JSON document, chunk, cache, entity, relation, and status payloads move into PostgreSQL
+  - Stored legacy vectors are copied into Chroma without recomputing embeddings
+  - The legacy GraphML graph is imported into Neo4j
 
 ## Storage Adapter Workspace Contract
 - Workspace-aware adapters normalize workspace candidates by trimming whitespace and selecting the first non-empty value from their documented precedence chain.

@@ -13,6 +13,7 @@ anthropic>=0.18.0,<1.0.0
 
 # Storage backend dependencies
 asyncpg>=0.29.0,<1.0.0
+chromadb>=0.5.0,<1.0.0
 google-genai>=1.0.0,<2.0.0
 
 # Document processing dependencies
@@ -22,12 +23,8 @@ ollama>=0.1.0,<1.0.0
 openai>=2.0.0,<3.0.0
 openpyxl>=3.0.0,<4.0.0
 pycryptodome>=3.0.0,<4.0.0
-pymilvus>=2.6.2,<3.0.0
-pymongo>=4.0.0,<5.0.0
 pypdf>=6.1.0
 python-docx>=0.8.11,<2.0.0
 python-pptx>=0.6.21,<2.0.0
-qdrant-client>=1.11.0,<2.0.0
-redis>=5.0.0,<8.0.0
 voyageai>=0.2.0,<1.0.0
 zhipuai>=2.0.0,<3.0.0

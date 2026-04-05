@@ -59,7 +59,7 @@
 - [2025.06.16]🎯Our team has released [RAG-Anything](https://github.com/HKUDS/RAG-Anything) an All-in-One Multimodal RAG System for seamless text, image, table, and equation processing.
 - [2025.06.05]🎯LightRAG now supports comprehensive multimodal data handling through [RAG-Anything](https://github.com/HKUDS/RAG-Anything) integration, enabling seamless document parsing and RAG capabilities across diverse formats including PDFs, images, Office documents, tables, and formulas. Please refer to the new [multimodal section](https://github.com/HKUDS/LightRAG/?tab=readme-ov-file#multimodal-document-processing-rag-anything-integration) for details.
 - [2025.03.18]🎯LightRAG now supports citation functionality, enabling proper source attribution.
-- [2025.02.12]🎯You can now use MongoDB as all in-one Storage.
+- [2025.02.12]🎯Storage support was expanded and later consolidated into the current `Postgres + Chroma + Neo4j` production stack.
 - [2025.02.05]🎯Our team has released [VideoRAG](https://github.com/HKUDS/VideoRAG) understanding extremely long-context videos.
 - [2025.01.13]🎯Our team has released [MiniRAG](https://github.com/HKUDS/MiniRAG) making RAG simpler with small models.
 - [2025.01.06]🎯You can now use PostgreSQL as all in-one Storage.
@@ -290,10 +290,10 @@ A full list of LightRAG init parameters:
 |--------------|----------|-----------------|-------------|
 | **working_dir** | `str` | Directory where the cache will be stored | `lightrag_cache+timestamp` |
 | **workspace** | str | Workspace name for data isolation between different LightRAG Instances |  |
-| **kv_storage** | `str` | Storage type for documents and text chunks. Supported types: `JsonKVStorage`,`PGKVStorage`,`RedisKVStorage`,`MongoKVStorage` | `JsonKVStorage` |
-| **vector_storage** | `str` | Storage type for embedding vectors. Supported types: `NanoVectorDBStorage`,`PGVectorStorage`,`MilvusVectorDBStorage`,`ChromaVectorDBStorage`,`FaissVectorDBStorage`,`MongoVectorDBStorage`,`QdrantVectorDBStorage` | `NanoVectorDBStorage` |
-| **graph_storage** | `str` | Storage type for graph edges and nodes. Supported types: `NetworkXStorage`,`Neo4JStorage`,`PGGraphStorage`,`AGEStorage` | `NetworkXStorage` |
-| **doc_status_storage** | `str` | Storage type for documents process status. Supported types: `JsonDocStatusStorage`,`PGDocStatusStorage`,`MongoDocStatusStorage` | `JsonDocStatusStorage` |
+| **kv_storage** | `str` | Storage type for documents and text chunks. Supported type: `PGKVStorage` | `PGKVStorage` |
+| **vector_storage** | `str` | Storage type for embedding vectors. Supported type: `ChromaVectorDBStorage` | `ChromaVectorDBStorage` |
+| **graph_storage** | `str` | Storage type for graph edges and nodes. Supported type: `Neo4JStorage` | `Neo4JStorage` |
+| **doc_status_storage** | `str` | Storage type for document processing status. Supported type: `PGDocStatusStorage` | `PGDocStatusStorage` |
 | **chunk_token_size** | `int` | Maximum token size per chunk when splitting documents | `1200` |
 | **chunk_overlap_token_size** | `int` | Overlap token size between two chunks when splitting documents | `100` |
 | **tokenizer** | `Tokenizer` | The function used to convert text into tokens (numbers) and back using .encode() and .decode() functions following `TokenizerInterface` protocol. If you don't specify one, it will use the default Tiktoken tokenizer. | `TiktokenTokenizer` |
@@ -764,43 +764,28 @@ Each storage type has several implementations:
 * KV_STORAGE supported implementations:
 
 ```
-JsonKVStorage    JsonFile (default)
-PGKVStorage      Postgres
-RedisKVStorage   Redis
-MongoKVStorage   MongoDB
+PGKVStorage      Postgres (default)
 ```
 
 * GRAPH_STORAGE supported implementations:
 
 ```
-NetworkXStorage      NetworkX (default)
-Neo4JStorage         Neo4J
-PGGraphStorage       PostgreSQL with AGE plugin
-MemgraphStorage.     Memgraph
+Neo4JStorage         Neo4J (default)
 ```
-
-> Testing has shown that Neo4J delivers superior performance in production environments compared to PostgreSQL with AGE plugin.
 
 * VECTOR_STORAGE supported implementations:
 
 ```
-NanoVectorDBStorage         NanoVector (default)
-PGVectorStorage             Postgres
-MilvusVectorDBStorage       Milvus
-FaissVectorDBStorage        Faiss
-QdrantVectorDBStorage       Qdrant
-MongoVectorDBStorage        MongoDB
+ChromaVectorDBStorage       Chroma (default)
 ```
 
 * DOC_STATUS_STORAGE: supported implementations:
 
 ```
-JsonDocStatusStorage        JsonFile (default)
-PGDocStatusStorage          Postgres
-MongoDocStatusStorage       MongoDB
+PGDocStatusStorage          Postgres (default)
 ```
 
-Example connection configurations for each storage type can be found in the `env.example` file. The database instance in the connection string needs to be created by you on the database server beforehand. LightRAG is only responsible for creating tables within the database instance, not for creating the database instance itself. If using Redis as storage, remember to configure automatic data persistence rules for Redis, otherwise data will be lost after the Redis service restarts. If using PostgreSQL, it is recommended to use version 16.6 or above.
+Example connection configurations for the official `Postgres + Chroma + Neo4j` stack can be found in `env.example`, `config.ini.example`, and `docker-compose.yml`. The database instances in the connection strings need to be created by you on the database server beforehand. LightRAG is responsible for creating tables, collections, and graph structures inside those instances.
 
 <details>
 <summary> <b>Using Neo4J Storage</b> </summary>
@@ -817,16 +802,11 @@ export NEO4J_PASSWORD="password"
 # Setup logger for LightRAG
 setup_logger("lightrag", level="INFO")
 
-# When you launch the project be sure to override the default KG: NetworkX
-# by specifying kg="Neo4JStorage".
-
-# Note: Default settings use NetworkX
-# Initialize LightRAG with Neo4J implementation.
+# Initialize LightRAG with the default Neo4J graph implementation.
 async def initialize_rag():
     rag = LightRAG(
         working_dir=WORKING_DIR,
         llm_model_func=gpt_4o_mini_complete,  # Use gpt_4o_mini_complete LLM model
-        graph_storage="Neo4JStorage", #<-----------override KG default
     )
 
     # Initialize database connections
@@ -842,106 +822,22 @@ see test_neo4j.py for a working example.
 <details>
 <summary> <b>Using PostgreSQL Storage</b> </summary>
 
-For production level scenarios you will most likely want to leverage an enterprise solution. PostgreSQL can provide a one-stop solution for you as KV store, VectorDB (pgvector) and GraphDB (apache AGE). PostgreSQL version 16.6 or higher is supported.
+PostgreSQL is the official document and status backend. It stores document bodies, text chunks, cache records, merged entity and relation records, chunk linkage tables, and document processing status.
 
-* PostgreSQL is lightweight,the whole binary distribution including all necessary plugins can be zipped to 40MB: Ref to [Windows Release](https://github.com/ShanGor/apache-age-windows/releases/tag/PG17%2Fv1.5.0-rc0) as it is easy to install for Linux/Mac.
-* If you prefer docker, please start with this image if you are a beginner to avoid hiccups (Default user password:rag/rag): https://hub.docker.com/r/gzdaniel/postgres-for-rag
-* How to start? Ref to: [examples/lightrag_zhipu_postgres_demo.py](https://github.com/HKUDS/LightRAG/blob/main/examples/lightrag_zhipu_postgres_demo.py)
-* For high-performance graph database requirements, Neo4j is recommended as Apache AGE's performance is not as competitive.
-
-</details>
-
-<details>
-<summary> <b>Using Faiss Storage</b> </summary>
-Before using Faiss vector database, you must manually install `faiss-cpu` or `faiss-gpu`.
-
-- Install the required dependencies:
-
-```
-pip install faiss-cpu
-```
-
-You can also install `faiss-gpu` if you have GPU support.
-
-- Here we are using `sentence-transformers` but you can also use `OpenAIEmbedding` model with `3072` dimensions.
-
-```python
-async def embedding_func(texts: list[str]) -> np.ndarray:
-    model = SentenceTransformer('all-MiniLM-L6-v2')
-    embeddings = model.encode(texts, convert_to_numpy=True)
-    return embeddings
-
-# Initialize LightRAG with the LLM model function and embedding function
-rag = LightRAG(
-    working_dir=WORKING_DIR,
-    llm_model_func=llm_model_func,
-    embedding_func=EmbeddingFunc(
-        embedding_dim=384,
-        func=embedding_func,
-    ),
-    vector_storage="FaissVectorDBStorage",
-    vector_db_storage_cls_kwargs={
-        "cosine_better_than_threshold": 0.3  # Your desired threshold
-    }
-)
-```
+* Recommended for production use with version 16.6 or later.
+* Workspace isolation is implemented through a `workspace` column.
+* The server defaults to `POSTGRES_WORKSPACE -> WORKSPACE -> default`.
 
 </details>
 
 <details>
-<summary> <b>Using Memgraph for Storage</b> </summary>
+<summary> <b>Using Chroma Storage</b> </summary>
 
-* Memgraph is a high-performance, in-memory graph database compatible with the Neo4j Bolt protocol.
-* You can run Memgraph locally using Docker for easy testing:
-* See: https://memgraph.com/download
+Chroma is the official vector backend. It stores entity, relationship, and chunk embeddings only.
 
-```python
-export MEMGRAPH_URI="bolt://localhost:7687"
-
-# Setup logger for LightRAG
-setup_logger("lightrag", level="INFO")
-
-# When you launch the project, override the default KG: NetworkX
-# by specifying kg="MemgraphStorage".
-
-# Note: Default settings use NetworkX
-# Initialize LightRAG with Memgraph implementation.
-async def initialize_rag():
-    rag = LightRAG(
-        working_dir=WORKING_DIR,
-        llm_model_func=gpt_4o_mini_complete,  # Use gpt_4o_mini_complete LLM model
-        graph_storage="MemgraphStorage", #<-----------override KG default
-    )
-
-    # Initialize database connections
-    await rag.initialize_storages()
-    # Initialize pipeline status for document processing
-    return rag
-```
-
-</details>
-
-<details>
-<summary> <b>Using MongoDB Storage</b> </summary>
-
-MongoDB provides a one-stop storage solution for LightRAG. MongoDB offers native KV storage and vector storage. LightRAG uses MongoDB collections to implement a simple graph storage. MongoDB's official vector search functionality (`$vectorSearch`) currently requires their official cloud service MongoDB Atlas. This functionality cannot be used on self-hosted MongoDB Community/Enterprise versions.
-
-</details>
-
-<details>
-<summary> <b>Using Redis Storage</b> </summary>
-
-LightRAG supports using Redis as KV storage. When using Redis storage, attention should be paid to persistence configuration and memory usage configuration. The following is the recommended Redis configuration:
-
-```
-save 900 1
-save 300 10
-save 60 1000
-stop-writes-on-bgsave-error yes
-maxmemory 4gb
-maxmemory-policy noeviction
-maxclients 500
-```
+* The default mode is persistent local storage under `WORKING_DIR/<workspace>/chroma/`.
+* For a shared deployment, switch to HTTP mode with `CHROMA_MODE=http`.
+* Workspace isolation is implemented through collection names in the form `<workspace>__<namespace>`.
 
 </details>
 
@@ -949,13 +845,21 @@ maxclients 500
 
 The `workspace` parameter ensures data isolation between different LightRAG instances. Once initialized, the `workspace` is immutable and cannot be changed.Here is how workspaces are implemented for different types of storage:
 
-- **For local file-based databases, data isolation is achieved through workspace subdirectories:** `JsonKVStorage`, `JsonDocStatusStorage`, `NetworkXStorage`, `NanoVectorDBStorage`, `FaissVectorDBStorage`.
-- **For databases that store data in collections, it's done by adding a workspace prefix to the collection name:** `RedisKVStorage`, `RedisDocStatusStorage`, `MilvusVectorDBStorage`, `MongoKVStorage`, `MongoDocStatusStorage`, `MongoVectorDBStorage`, `MongoGraphStorage`, `PGGraphStorage`.
-- **For Qdrant vector database, data isolation is achieved through payload-based partitioning (Qdrant's recommended multitenancy approach):** `QdrantVectorDBStorage` uses shared collections with payload filtering for unlimited workspace scalability.
-- **For relational databases, data isolation is achieved by adding a `workspace` field to the tables for logical data separation:** `PGKVStorage`, `PGVectorStorage`, `PGDocStatusStorage`.
+- **For relational databases, data isolation is achieved by adding a `workspace` field to the tables for logical data separation:** `PGKVStorage`, `PGDocStatusStorage`.
+- **For Chroma collections, data isolation is achieved by adding a workspace prefix to the collection name:** `ChromaVectorDBStorage`.
 - **For the Neo4j graph database, logical data isolation is achieved through labels:** `Neo4JStorage`
 
-To maintain compatibility with legacy data, the default workspace for PostgreSQL non-graph storage is `default` and, for PostgreSQL AGE graph storage is null, for Neo4j graph storage is `base` when no workspace is configured. For all external storages, the system provides dedicated workspace environment variables to override the common `WORKSPACE` environment variable configuration. These storage-specific workspace environment variables are: `REDIS_WORKSPACE`, `MILVUS_WORKSPACE`, `QDRANT_WORKSPACE`, `MONGODB_WORKSPACE`, `POSTGRES_WORKSPACE`, `NEO4J_WORKSPACE`.
+To maintain compatibility with legacy data, the default workspace for PostgreSQL is `default` and for Neo4j is `base` when no workspace is configured. Chroma uses `CHROMA_WORKSPACE -> WORKSPACE -> default`, PostgreSQL uses `POSTGRES_WORKSPACE -> WORKSPACE -> default`, and Neo4j uses `NEO4J_WORKSPACE -> WORKSPACE -> base`.
+
+### Legacy Migration
+
+To migrate an existing local `rag_storage` directory created with `JsonKVStorage + JsonDocStatusStorage + NanoVectorDBStorage + NetworkXStorage`, run:
+
+```bash
+python -m lightrag.tools.migrate_to_pg_chroma_neo4j --working-dir ./rag_storage
+```
+
+The migration reuses the existing JSON payloads, copies stored embeddings directly into Chroma without recomputing them, and imports the GraphML knowledge graph into Neo4j.
 
 ### AGENTS.md -- Guiding Coding Agents
 

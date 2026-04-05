@@ -87,6 +87,8 @@ class PostgreSQLDB:
 
         # Statement LRU cache size (keep as-is, allow None for optional configuration)
         self.statement_cache_size = config.get("statement_cache_size")
+        self.vector_storage = config.get("vector_storage", "ChromaVectorDBStorage")
+        self.graph_storage = config.get("graph_storage", "Neo4JStorage")
 
         if self.user is None or self.password is None or self.database is None:
             raise ValueError("Missing database user, password, or database")
@@ -122,6 +124,31 @@ class PostgreSQLDB:
             self.connection_retry_backoff_max,
             self.pool_close_timeout,
         )
+
+    @property
+    def use_pgvector_backend(self) -> bool:
+        return self.vector_storage == "PGVectorStorage"
+
+    def _managed_tables(self) -> dict[str, dict[str, str]]:
+        base_tables = {
+            "LIGHTRAG_DOC_FULL",
+            "LIGHTRAG_DOC_CHUNKS",
+            "LIGHTRAG_LLM_CACHE",
+            "LIGHTRAG_DOC_STATUS",
+            "LIGHTRAG_FULL_ENTITIES",
+            "LIGHTRAG_FULL_RELATIONS",
+            "LIGHTRAG_ENTITY_CHUNKS",
+            "LIGHTRAG_RELATION_CHUNKS",
+        }
+        if self.use_pgvector_backend:
+            base_tables.update(
+                {
+                    "LIGHTRAG_VDB_CHUNKS",
+                    "LIGHTRAG_VDB_ENTITY",
+                    "LIGHTRAG_VDB_RELATION",
+                }
+            )
+        return {name: TABLES[name] for name in base_tables}
 
     def _create_ssl_context(self) -> ssl.SSLContext | None:
         """Create SSL context based on configuration parameters."""
@@ -257,7 +284,8 @@ class PostgreSQLDB:
             pool = await asyncpg.create_pool(**connection_params)  # type: ignore
             try:
                 async with pool.acquire() as connection:
-                    await self.configure_vector_extension(connection)
+                    if self.use_pgvector_backend:
+                        await self.configure_vector_extension(connection)
             except Exception:
                 await pool.close()
                 raise
@@ -1093,8 +1121,10 @@ class PostgreSQLDB:
             logger.error(f"Failed to batch check field lengths: {e}")
 
     async def check_tables(self):
+        managed_tables = self._managed_tables()
+
         # First create all tables
-        for k, v in TABLES.items():
+        for k, v in managed_tables.items():
             try:
                 await self.query(f"SELECT 1 FROM {k} LIMIT 1")
             except Exception:
@@ -1112,7 +1142,7 @@ class PostgreSQLDB:
 
         # Batch check all indexes at once (optimization: single query instead of N queries)
         try:
-            table_names = list(TABLES.keys())
+            table_names = list(managed_tables.keys())
             table_names_lower = [t.lower() for t in table_names]
 
             # Get all existing indexes for our tables in one query
@@ -1165,7 +1195,7 @@ class PostgreSQLDB:
             logger.error(f"PostgreSQL, Failed to batch check/create indexes: {e}")
 
         # Create vector indexs
-        if self.vector_index_type:
+        if self.use_pgvector_backend and self.vector_index_type:
             logger.info(
                 f"PostgreSQL, Create vector indexs, type: {self.vector_index_type}"
             )
@@ -1182,11 +1212,12 @@ class PostgreSQLDB:
                     f"PostgreSQL, Failed to create vector index, type: {self.vector_index_type}, Got: {e}"
                 )
         # After all tables are created, attempt to migrate timestamp fields
-        try:
-            await self._migrate_timestamp_columns()
-        except Exception as e:
-            logger.error(f"PostgreSQL, Failed to migrate timestamp columns: {e}")
-            # Don't throw an exception, allow the initialization process to continue
+        if self.use_pgvector_backend:
+            try:
+                await self._migrate_timestamp_columns()
+            except Exception as e:
+                logger.error(f"PostgreSQL, Failed to migrate timestamp columns: {e}")
+                # Don't throw an exception, allow the initialization process to continue
 
         # Migrate LLM cache schema: add new columns and remove deprecated mode field
         try:
@@ -1196,10 +1227,13 @@ class PostgreSQLDB:
             # Don't throw an exception, allow the initialization process to continue
 
         # Finally, attempt to migrate old doc chunks data if needed
-        try:
-            await self._migrate_doc_chunks_to_vdb_chunks()
-        except Exception as e:
-            logger.error(f"PostgreSQL, Failed to migrate doc_chunks to vdb_chunks: {e}")
+        if self.use_pgvector_backend:
+            try:
+                await self._migrate_doc_chunks_to_vdb_chunks()
+            except Exception as e:
+                logger.error(
+                    f"PostgreSQL, Failed to migrate doc_chunks to vdb_chunks: {e}"
+                )
 
         # Check and migrate LLM cache to flattened keys if needed
         try:
@@ -1225,10 +1259,11 @@ class PostgreSQLDB:
             )
 
         # Migrate field lengths for entity_name, source_id, target_id, and file_path
-        try:
-            await self._migrate_field_lengths()
-        except Exception as e:
-            logger.error(f"PostgreSQL, Failed to migrate field lengths: {e}")
+        if self.use_pgvector_backend:
+            try:
+                await self._migrate_field_lengths()
+            except Exception as e:
+                logger.error(f"PostgreSQL, Failed to migrate field lengths: {e}")
 
         # Migrate doc status to add track_id field if needed
         try:
@@ -1526,6 +1561,10 @@ class ClientManager:
         config.read("config.ini", "utf-8")
 
         return {
+            "vector_storage": os.environ.get(
+                "LIGHTRAG_VECTOR_STORAGE", "ChromaVectorDBStorage"
+            ),
+            "graph_storage": os.environ.get("LIGHTRAG_GRAPH_STORAGE", "Neo4JStorage"),
             "host": os.environ.get(
                 "POSTGRES_HOST",
                 config.get("postgres", "host", fallback="localhost"),

@@ -22,12 +22,15 @@ classifiers = [
 ]
 dependencies = [
     "aiohttp",
+    "asyncpg>=0.29.0,<1.0.0",
+    "chromadb>=0.5.0,<1.0.0",
     "configparser",
     "future",
     "google-api-core>=2.0.0,<3.0.0",
     "google-genai>=1.0.0,<2.0.0",
     "json_repair",
     "nano-vectordb",
+    "neo4j>=5.0.0,<7.0.0",
     "networkx",
     "numpy>=1.24.0,<2.0.0",
     "pandas>=2.0.0,<2.4.0",
@@ -76,12 +79,14 @@ api = [
     # API-specific dependencies
     "aiofiles",
     "ascii_colors",
-    "asyncpg",
+    "asyncpg>=0.29.0,<1.0.0",
+    "chromadb>=0.5.0,<1.0.0",
     "distro",
     "fastapi",
     "httpcore",
     "httpx",
     "jiter",
+    "neo4j>=5.0.0,<7.0.0",
     "passlib[bcrypt]",
     "psutil",
     "PyJWT>=2.8.0,<3.0.0",
@@ -107,13 +112,10 @@ docling = [
 
 # Offline deployment dependencies (layered design for flexibility)
 offline-storage = [
-    # Storage backend dependencies
-    "redis>=5.0.0,<8.0.0",
-    "neo4j>=5.0.0,<7.0.0",
-    "pymilvus>=2.6.2,<3.0.0",
-    "pymongo>=4.0.0,<5.0.0",
+    # Production storage stack dependencies
     "asyncpg>=0.29.0,<1.0.0",
-    "qdrant-client>=1.11.0,<2.0.0",
+    "chromadb>=0.5.0,<1.0.0",
+    "neo4j>=5.0.0,<7.0.0",
 ]
 
 offline-llm = [

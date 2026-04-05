@@ -288,10 +288,10 @@ if __name__ == "__main__":
 | **参数** | **类型** | **说明** | **默认值** |
 |--------------|----------|-----------------|-------------|
 | **working_dir** | `str` | 存储缓存的目录 | `lightrag_cache+timestamp` |
-| **kv_storage** | `str` | Storage type for documents and text chunks. Supported types: `JsonKVStorage`,`PGKVStorage`,`RedisKVStorage`,`MongoKVStorage` | `JsonKVStorage` |
-| **vector_storage** | `str` | Storage type for embedding vectors. Supported types: `NanoVectorDBStorage`,`PGVectorStorage`,`MilvusVectorDBStorage`,`ChromaVectorDBStorage`,`FaissVectorDBStorage`,`MongoVectorDBStorage`,`QdrantVectorDBStorage` | `NanoVectorDBStorage` |
-| **graph_storage** | `str` | Storage type for graph edges and nodes. Supported types: `NetworkXStorage`,`Neo4JStorage`,`PGGraphStorage`,`AGEStorage` | `NetworkXStorage` |
-| **doc_status_storage** | `str` | Storage type for documents process status. Supported types: `JsonDocStatusStorage`,`PGDocStatusStorage`,`MongoDocStatusStorage` | `JsonDocStatusStorage` |
+| **kv_storage** | `str` | Storage type for documents and text chunks. Supported type: `PGKVStorage` | `PGKVStorage` |
+| **vector_storage** | `str` | Storage type for embedding vectors. Supported type: `ChromaVectorDBStorage` | `ChromaVectorDBStorage` |
+| **graph_storage** | `str` | Storage type for graph edges and nodes. Supported type: `Neo4JStorage` | `Neo4JStorage` |
+| **doc_status_storage** | `str` | Storage type for documents process status. Supported type: `PGDocStatusStorage` | `PGDocStatusStorage` |
 | **chunk_token_size** | `int` | 拆分文档时每个块的最大令牌大小 | `1200` |
 | **chunk_overlap_token_size** | `int` | 拆分文档时两个块之间的重叠令牌大小 | `100` |
 | **tokenizer** | `Tokenizer` | 用于将文本转换为 tokens（数字）以及使用遵循 TokenizerInterface 协议的 .encode() 和 .decode() 函数将 tokens 转换回文本的函数。 如果您不指定，它将使用默认的 Tiktoken tokenizer。 | `TiktokenTokenizer` |
@@ -766,42 +766,28 @@ LightRAG 使用 4 种类型的存储用于不同目的：
 * KV_STORAGE 支持的实现名称
 
 ```
-JsonKVStorage    JsonFile(默认)
-PGKVStorage      Postgres
-RedisKVStorage   Redis
-MongoKVStorage   MogonDB
+PGKVStorage      Postgres(默认)
 ```
 
 * GRAPH_STORAGE 支持的实现名称
 
 ```
-NetworkXStorage      NetworkX(默认)
-Neo4JStorage         Neo4J
-PGGraphStorage       PostgreSQL with AGE plugin
+Neo4JStorage         Neo4J(默认)
 ```
-
-> 在测试中Neo4j图形数据库相比PostgreSQL AGE有更好的性能表现。
 
 * VECTOR_STORAGE 支持的实现名称
 
 ```
-NanoVectorDBStorage         NanoVector(默认)
-PGVectorStorage             Postgres
-MilvusVectorDBStorge        Milvus
-FaissVectorDBStorage        Faiss
-QdrantVectorDBStorage       Qdrant
-MongoVectorDBStorage        MongoDB
+ChromaVectorDBStorage       Chroma(默认)
 ```
 
 * DOC_STATUS_STORAGE 支持的实现名称
 
 ```
-JsonDocStatusStorage        JsonFile(默认)
-PGDocStatusStorage          Postgres
-MongoDocStatusStorage       MongoDB
+PGDocStatusStorage          Postgres(默认)
 ```
 
-每一种存储类型的链接配置范例可以在 `env.example` 文件中找到。链接字符串中的数据库实例是需要你预先在数据库服务器上创建好的，LightRAG 仅负责在数据库实例中创建数据表，不负责创建数据库实例。如果使用 Redis 作为存储，记得给 Redis 配置自动持久化数据规则，否则 Redis 服务重启后数据会丢失。如果使用PostgreSQL数据库，推荐使用16.6版本或以上。
+官方 `Postgres + Chroma + Neo4j` 存储栈的连接配置示例可以在 `env.example`、`config.ini.example` 和 `docker-compose.yml` 中找到。连接字符串中的数据库实例需要你预先在数据库服务器上创建好，LightRAG 负责在这些实例内创建数据表、集合和图结构。PostgreSQL 推荐使用 16.6 或以上版本。
 
 <details>
 <summary> <b>使用Neo4J存储</b> </summary>
@@ -818,15 +804,11 @@ export NEO4J_PASSWORD="password"
 # 为LightRAG设置日志记录器
 setup_logger("lightrag", level="INFO")
 
-# 当您启动项目时，请确保通过指定kg="Neo4JStorage"来覆盖默认的KG：NetworkX。
-
-# 注意：默认设置使用NetworkX
-# 使用Neo4J实现初始化LightRAG。
+# 使用默认的 Neo4J 图存储初始化 LightRAG。
 async def initialize_rag():
     rag = LightRAG(
         working_dir=WORKING_DIR,
         llm_model_func=gpt_4o_mini_complete,  # 使用gpt_4o_mini_complete LLM模型
-        graph_storage="Neo4JStorage", #<-----------覆盖KG默认值
     )
 
     # 初始化数据库连接
@@ -912,15 +894,23 @@ maxclients 500
 
 ### LightRAG实例间的数据隔离
 
-通过 workspace 参数可以不同实现不同LightRAG实例之间的存储数据隔离。LightRAG在初始化后workspace就已经确定，之后修改workspace是无效的。下面是不同类型的存储实现工作空间的方式：
+通过 workspace 参数可以在不同的 LightRAG 实例之间实现存储数据隔离。LightRAG 初始化后 workspace 就已经确定，之后修改 workspace 是无效的。当前官方存储栈的工作空间规则如下：
 
-- **对于本地基于文件的数据库，数据隔离通过工作空间子目录实现：** JsonKVStorage, JsonDocStatusStorage, NetworkXStorage, NanoVectorDBStorage, FaissVectorDBStorage。
-- **对于将数据存储在集合（collection）中的数据库，通过在集合名称前添加工作空间前缀来实现：** RedisKVStorage, RedisDocStatusStorage, MilvusVectorDBStorage, QdrantVectorDBStorage, MongoKVStorage, MongoDocStatusStorage, MongoVectorDBStorage, MongoGraphStorage, PGGraphStorage。
-- **对于关系型数据库，数据隔离通过向表中添加 `workspace` 字段进行数据的逻辑隔离：** PGKVStorage, PGVectorStorage, PGDocStatusStorage。
+- **对于关系型数据库，数据隔离通过向表中添加 `workspace` 字段进行逻辑隔离：** `PGKVStorage`, `PGDocStatusStorage`。
+- **对于 Chroma 集合，数据隔离通过在集合名称前添加工作空间前缀实现：** `ChromaVectorDBStorage`。
+- **对于 Neo4j 图数据库，数据隔离通过 label 实现：** `Neo4JStorage`。
 
-* **对于Neo4j图数据库，通过label来实现数据的逻辑隔离**：Neo4JStorage
+为了保持对遗留数据的兼容，在未配置工作空间时 PostgreSQL 的默认工作空间为 `default`，Neo4j 的默认工作空间为 `base`。Chroma 使用 `CHROMA_WORKSPACE -> WORKSPACE -> default`，PostgreSQL 使用 `POSTGRES_WORKSPACE -> WORKSPACE -> default`，Neo4j 使用 `NEO4J_WORKSPACE -> WORKSPACE -> base`。
 
-为了保持对遗留数据的兼容，在未配置工作空间时PostgreSQL非图存储的工作空间为`default`，PostgreSQL AGE图存储的工作空间为空，Neo4j图存储的默认工作空间为`base`。对于所有的外部存储，系统都提供了专用的工作空间环境变量，用于覆盖公共的 `WORKSPACE`环境变量配置。这些适用于指定存储类型的工作空间环境变量为：`REDIS_WORKSPACE`, `MILVUS_WORKSPACE`, `QDRANT_WORKSPACE`, `MONGODB_WORKSPACE`, `POSTGRES_WORKSPACE`, `NEO4J_WORKSPACE`。
+### 遗留本地存储迁移
+
+如果您已经在本地 `rag_storage` 目录中使用过 `JsonKVStorage + JsonDocStatusStorage + NanoVectorDBStorage + NetworkXStorage`，可以运行下面的迁移工具切换到官方的 `Postgres + Chroma + Neo4j` 存储栈：
+
+```bash
+python -m lightrag.tools.migrate_to_pg_chroma_neo4j --working-dir ./rag_storage
+```
+
+该迁移工具会复用现有 JSON 数据，将已有向量直接复制到 Chroma 而不重新计算 embedding，并把 GraphML 知识图导入 Neo4j。
 
 ### AGENTS.md – 自动编程引导文件
 

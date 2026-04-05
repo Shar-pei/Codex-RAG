@@ -1,12 +1,49 @@
 services:
+  postgres:
+    container_name: lightrag-postgres
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DATABASE:-lightrag}
+      POSTGRES_USER: ${POSTGRES_USER:-lightrag}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lightrag}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  chroma:
+    container_name: lightrag-chroma
+    image: chromadb/chroma:latest
+    ports:
+      - "${CHROMA_PORT:-8000}:8000"
+    volumes:
+      - chroma-data:/chroma/chroma
+    restart: unless-stopped
+
+  neo4j:
+    container_name: lightrag-neo4j
+    image: neo4j:5
+    environment:
+      NEO4J_AUTH: "${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-lightrag-password}"
+      NEO4J_dbms_default__database: ${NEO4J_DATABASE:-neo4j}
+    ports:
+      - "7474:7474"
+      - "${NEO4J_BOLT_PORT:-7687}:7687"
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+    restart: unless-stopped
+
   lightrag:
     container_name: lightrag
-    # image: ghcr.io/hkuds/lightrag:latest  # 注释或删除这一行
     build:
       context: .
       dockerfile: Dockerfile
-      # tags:  # 如果删除了上面的image，这里的tags也可以注释掉
-      #   - ghcr.io/hkuds/lightrag:latest
+    depends_on:
+      - postgres
+      - chroma
+      - neo4j
     ports:
       - "${PORT:-9621}:9621"
     volumes:
@@ -16,6 +53,23 @@ services:
       - ./.env:/app/.env
     env_file:
       - .env
+    environment:
+      WORKING_DIR: /app/data/rag_storage
+      INPUT_DIR: /app/data/inputs
+      LIGHTRAG_KV_STORAGE: PGKVStorage
+      LIGHTRAG_DOC_STATUS_STORAGE: PGDocStatusStorage
+      LIGHTRAG_VECTOR_STORAGE: ChromaVectorDBStorage
+      LIGHTRAG_GRAPH_STORAGE: Neo4JStorage
+      POSTGRES_HOST: postgres
+      CHROMA_MODE: http
+      CHROMA_HOST: chroma
+      NEO4J_URI: bolt://neo4j:7687
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+volumes:
+  postgres-data:
+  chroma-data:
+  neo4j-data:
+  neo4j-logs:

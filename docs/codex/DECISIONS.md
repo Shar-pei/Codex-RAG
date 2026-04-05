@@ -250,3 +250,20 @@
   - Phase A validation now leaves behind a reproducible acceptance note plus machine-readable benchmark history.
   - Later runs can compare command timings directly from the repository instead of reconstructing them from terminal logs.
   - `E1` can close without widening scope beyond the already accepted Phase A validation commands.
+
+## DCR-017: F1 freezes the supported runtime storage stack to Postgres + Chroma + Neo4j
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - The active branch baseline had already moved runtime defaults, deployment assets, and docs toward `PGKVStorage + PGDocStatusStorage + ChromaVectorDBStorage + Neo4JStorage`, but the task queue did not yet describe that work as a first-class task.
+  - Storage verification still used open-ended registries even though the intended production contract had narrowed, which left conflicting defaults and stale migration guidance in tests and translated docs.
+  - `lightrag/kg/postgres_impl.py` still contained optional pgvector bootstrap behavior that should only run when PostgreSQL is actually selected as the vector backend.
+- Decision:
+  - Treat the storage-stack convergence as its own closed-loop task (`F1`) and record it in `docs/codex/TASK_QUEUE.yaml`.
+  - Freeze the supported runtime storage selection contract to `PGKVStorage`, `PGDocStatusStorage`, `ChromaVectorDBStorage`, and `Neo4JStorage`.
+  - Keep legacy adapters in the repository for migration and maintenance tooling, but remove them from the documented runtime selection surface and from storage verification.
+  - Make `PostgreSQLDB` manage pgvector-specific tables, extensions, and migrations only when `LIGHTRAG_VECTOR_STORAGE=PGVectorStorage`, so the default Chroma path does not bootstrap unused PostgreSQL vector artifacts.
+- Impact:
+  - Runtime defaults, deployment examples, and storage verification now describe one explicit production stack instead of several conflicting defaults.
+  - The new migration tool `python -m lightrag.tools.migrate_to_pg_chroma_neo4j` becomes the deliberate bridge from the legacy local stack into the supported runtime contract.
+  - Focused regression tests now protect the default stack contract and the PostgreSQL table-management boundary without widening the task into unrelated adapter cleanup.

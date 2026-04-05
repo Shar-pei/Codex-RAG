@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "E1 completed via generated Phase A benchmark artifacts and acceptance reporting; Phase A optimization loop is closed on codex/lightrag"
+  current_focus: "F1 completed via the documented Postgres + Chroma + Neo4j storage-stack convergence; codex/lightrag now records the production storage contract and migration path as the active baseline"
 
 tasks:
   - id: A0
@@ -202,3 +202,42 @@ tasks:
       - "This task closes the optimization program, not just a single code change."
       - "Completed by extending scripts/quality_gate.py so the phase-a profile measures each baseline command, writes `docs/codex/benchmarks/phase_a_latest.json`, appends `docs/codex/benchmarks/phase_a_history.jsonl`, and regenerates `docs/codex/ACCEPTANCE_REPORT.md`."
       - "Validation ran through `python scripts/quality_gate.py --profile phase-a`, which passed with the generated artifacts recorded from the current branch tip."
+
+  - id: F1
+    title: "Converge the documented storage stack on Postgres + Chroma + Neo4j"
+    priority: 9
+    status: completed
+    depends_on: [E1]
+    area: "storage"
+    problem_statement: "Storage defaults, registry validation, deployment docs, and migration guidance drifted apart while the branch converged on a single production storage stack."
+    root_cause_hypothesis: "The codebase still treated storage selection as open-ended even after the intended runtime baseline moved to Postgres for documents/status, Chroma for vectors, and Neo4j for graphs."
+    definition_of_done:
+      - "Default storage selection surfaces point to `PGKVStorage + PGDocStatusStorage + ChromaVectorDBStorage + Neo4JStorage`"
+      - "Storage registry and PostgreSQL bootstrap only expose or manage tables for the intended production stack"
+      - "Legacy local storage has a documented migration path into the production stack"
+      - "Focused regression tests lock the storage-stack contract"
+    validation_commands:
+      - "python -m ruff check lightrag/api/config.py lightrag/kg/__init__.py lightrag/kg/chroma_impl.py lightrag/kg/postgres_impl.py lightrag/tools/migrate_to_pg_chroma_neo4j.py tests/test_chroma_storage.py tests/test_graph_storage.py tests/test_storage_contracts.py tests/test_storage_stack_defaults.py"
+      - "python -m pytest tests/test_chroma_storage.py tests/test_storage_contracts.py tests/test_storage_stack_defaults.py -m \"not integration\""
+    risk_level: "high"
+    expected_files:
+      - "README.md"
+      - "README-zh.md"
+      - "config.ini.example"
+      - "docker-compose.yml"
+      - "env.example"
+      - "lightrag/api/README.md"
+      - "lightrag/api/README-zh.md"
+      - "lightrag/api/config.py"
+      - "lightrag/kg/__init__.py"
+      - "lightrag/kg/postgres_impl.py"
+      - "lightrag/tools/migrate_to_pg_chroma_neo4j.py"
+      - "pyproject.toml"
+      - "requirements-offline*.txt"
+      - "tests/*"
+      - "docs/codex/CONTRACTS.md"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by making the official storage contract explicit across runtime defaults, storage verification, deployment docs, and migration guidance."
+      - "Focused regression coverage lives in tests/test_storage_stack_defaults.py, with tests/test_chroma_storage.py and tests/test_storage_contracts.py covering the touched adapter seam."
+      - "Validation is scoped to the touched storage seam because repo-wide Ruff still reports unrelated baseline lint debt outside F1."

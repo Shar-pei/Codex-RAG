@@ -165,15 +165,13 @@ lightrag-server --port 9622 --workspace space2
 
 每个实例配置一个独立的工作目录和专用`.env`配置文件通常能够保证内存数据库中的本地持久化文件保存在各自的工作目录，实现数据的相互隔离。LightRAG默认存储全部都是内存数据库，通过这种方式进行数据隔离是没有问题的。但是如果使用的是外部数据库，如果不同实例访问的是同一个数据库实例，就需要通过配置工作空间来实现数据隔离，否则不同实例的数据将会出现冲突并被破坏。
 
-命令行的 workspace 参数和`.env`文件中的环境变量`WORKSPACE` 都可以用于指定当前实例的工作空间名字，命令行参数的优先级别更高。下面是不同类型的存储实现工作空间的方式：
+命令行的 workspace 参数和`.env`文件中的环境变量`WORKSPACE` 都可以用于指定当前实例的工作空间名字，命令行参数的优先级更高。当前官方存储栈的工作空间规则如下：
 
-- **对于本地基于文件的数据库，数据隔离通过工作空间子目录实现：** JsonKVStorage, JsonDocStatusStorage, NetworkXStorage, NanoVectorDBStorage, FaissVectorDBStorage。
-- **对于将数据存储在集合（collection）中的数据库，通过在集合名称前添加工作空间前缀来实现：** RedisKVStorage, RedisDocStatusStorage, MilvusVectorDBStorage, QdrantVectorDBStorage, MongoKVStorage, MongoDocStatusStorage, MongoVectorDBStorage, MongoGraphStorage, PGGraphStorage。
-- **对于关系型数据库，数据隔离通过向表中添加 `workspace` 字段进行数据的逻辑隔离：** PGKVStorage, PGVectorStorage, PGDocStatusStorage。
+- **对于关系型数据库，数据隔离通过向表中添加 `workspace` 字段进行逻辑隔离：** `PGKVStorage`, `PGDocStatusStorage`。
+- **对于 Chroma 集合，数据隔离通过在集合名称前添加工作空间前缀实现：** `ChromaVectorDBStorage`。
+- **对于 Neo4j 图数据库，数据隔离通过 label 实现：** `Neo4JStorage`。
 
-* **对于Neo4j图数据库，通过label来实现数据的逻辑隔离**：Neo4JStorage
-
-为了保持对遗留数据的兼容，在未配置工作空间时PostgreSQL的默认工作空间为`default`，Neo4j的默认工作空间为`base`。对于所有的外部存储，系统都提供了专用的工作空间环境变量，用于覆盖公共的 `WORKSPACE`环境变量配置。这些适用于指定存储类型的工作空间环境变量为：`REDIS_WORKSPACE`, `MILVUS_WORKSPACE`, `QDRANT_WORKSPACE`, `MONGODB_WORKSPACE`, `POSTGRES_WORKSPACE`, `NEO4J_WORKSPACE`。
+为了保持对遗留数据的兼容，在未配置工作空间时 PostgreSQL 的默认工作空间为 `default`，Neo4j 的默认工作空间为 `base`。Chroma 使用 `CHROMA_WORKSPACE -> WORKSPACE -> default`，PostgreSQL 使用 `POSTGRES_WORKSPACE -> WORKSPACE -> default`，Neo4j 使用 `NEO4J_WORKSPACE -> WORKSPACE -> base`。
 
 ### Gunicorn + Uvicorn 的多工作进程
 
@@ -401,12 +399,12 @@ LightRAG 使用 4 种类型的存储用于不同目的：
 
 ```
 LIGHTRAG_KV_STORAGE=PGKVStorage
-LIGHTRAG_VECTOR_STORAGE=PGVectorStorage
-LIGHTRAG_GRAPH_STORAGE=PGGraphStorage
+LIGHTRAG_VECTOR_STORAGE=ChromaVectorDBStorage
+LIGHTRAG_GRAPH_STORAGE=Neo4JStorage
 LIGHTRAG_DOC_STATUS_STORAGE=PGDocStatusStorage
 ```
 
-在向 LightRAG 添加文档后，您不能更改存储实现选择。目前尚不支持从一个存储实现迁移到另一个存储实现。更多配置信息请阅读示例 `env.exampl`e文件。
+在向 LightRAG 添加文档后，您不能更改存储实现选择。如果您需要把遗留的本地存储迁移到当前官方存储栈，请运行 `python -m lightrag.tools.migrate_to_pg_chroma_neo4j`。更多配置信息请阅读示例 `env.example` 和 `config.ini.example` 文件。
 
 ### 在不同存储类型之间迁移LLM缓存
 
