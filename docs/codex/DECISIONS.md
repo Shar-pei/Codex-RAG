@@ -537,3 +537,19 @@
   - `query_routes.py` sheds its remaining inline NDJSON orchestration and moves closer to a route-only module.
   - Streaming behavior now has focused regression coverage for reference emission, empty-chunk filtering, stream error lines, and non-stream fallback payloads.
   - A follow-on task can target the remaining non-stream query execution or data-response normalization as separate seams.
+
+## DCR-035: X1 moves non-stream query execution behind a query-execution seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `W1`, `lightrag/api/routers/query_routes.py` still owned the non-stream `/query` execution path and `/query/data` response normalization.
+  - Those blocks handled request-to-param conversion, direct `rag` calls, and public response shaping, but they did not depend on route registration.
+  - Root-cause checks also exposed a latent bug in the `/query/data` fallback path: it tried to instantiate `QueryDataResponse` without the required `metadata` field, which raises a Pydantic validation error instead of returning the intended failure payload.
+- Decision:
+  - Introduce `lightrag/api/routers/query_execution.py` for non-stream `/query` execution, `/query/data` param building, and response normalization helpers.
+  - Reuse and re-export those helpers from `lightrag/api/routers/query_routes.py` so the router remains the compatibility surface for extracted query helpers.
+  - Fix the invalid `/query/data` fallback by returning `metadata={}` in the normalized failure response.
+- Impact:
+  - `query_routes.py` sheds its remaining non-stream runtime orchestration and moves closer to a route-only module.
+  - The `/query/data` fallback path is now a valid `QueryDataResponse` instead of a second-order validation failure.
+  - Focused tests now protect stream=False enforcement, query helper re-exports, and the corrected failure normalization path.

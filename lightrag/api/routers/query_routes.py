@@ -13,6 +13,13 @@ from lightrag.api.routers.query_models import (
     ReferenceItem as _ReferenceItem,
     StreamChunkResponse as _StreamChunkResponse,
 )
+from lightrag.api.routers.query_execution import (
+    build_query_data_param as _build_query_data_param,
+    build_query_text_param as _build_query_text_param,
+    execute_query_data_request as _execute_query_data_request,
+    execute_query_text_request as _execute_query_text_request,
+    normalize_query_data_response as _normalize_query_data_response,
+)
 from lightrag.api.routers.query_route_docs import (
     QUERY_DATA_ROUTE_RESPONSES as _QUERY_DATA_ROUTE_RESPONSES,
     QUERY_ROUTE_RESPONSES as _QUERY_ROUTE_RESPONSES,
@@ -36,6 +43,11 @@ StreamChunkResponse = _StreamChunkResponse
 QUERY_ROUTE_RESPONSES = _QUERY_ROUTE_RESPONSES
 QUERY_STREAM_ROUTE_RESPONSES = _QUERY_STREAM_ROUTE_RESPONSES
 QUERY_DATA_ROUTE_RESPONSES = _QUERY_DATA_ROUTE_RESPONSES
+build_query_text_param = _build_query_text_param
+build_query_data_param = _build_query_data_param
+execute_query_text_request = _execute_query_text_request
+normalize_query_data_response = _normalize_query_data_response
+execute_query_data_request = _execute_query_data_request
 prepare_query_references = _prepare_query_references
 get_query_response_content = _get_query_response_content
 build_query_response_model = _build_query_response_model
@@ -133,19 +145,7 @@ def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
                 - 500: Internal processing error (e.g., LLM service unavailable)
         """
         try:
-            param = request.to_query_params(
-                False
-            )  # Ensure stream=False for non-streaming endpoint
-            # Force stream=False for /query endpoint regardless of include_references setting
-            param.stream = False
-
-            # Unified approach: always use aquery_llm for both cases
-            result = await rag.aquery_llm(request.query, param=param)
-            return build_query_response_model(
-                result,
-                include_references=request.include_references,
-                include_chunk_content=request.include_chunk_content,
-            )
+            return await execute_query_text_request(rag, request)
         except Exception as e:
             logger.error(f"Error processing query: {str(e)}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e))
@@ -408,19 +408,7 @@ def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
             as structured data analysis typically requires source attribution.
         """
         try:
-            param = request.to_query_params(False)  # No streaming for data endpoint
-            response = await rag.aquery_data(request.query, param=param)
-
-            # aquery_data returns the new format with status, message, data, and metadata
-            if isinstance(response, dict):
-                return QueryDataResponse(**response)
-            else:
-                # Handle unexpected response format
-                return QueryDataResponse(
-                    status="failure",
-                    message="Invalid response type",
-                    data={},
-                )
+            return await execute_query_data_request(rag, request)
         except Exception as e:
             logger.error(f"Error processing data query: {str(e)}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e))

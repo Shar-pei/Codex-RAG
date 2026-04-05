@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "W1 completed by extracting /query/stream NDJSON assembly out of query_routes.py, reducing the largest active router's remaining streaming orchestration seam"
+  current_focus: "X1 completed by extracting non-stream query execution and /query/data normalization out of query_routes.py, reducing the router's remaining runtime orchestration and closing an invalid fallback path"
 
 tasks:
   - id: A0
@@ -668,3 +668,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving the /query/stream NDJSON iterator and StreamingResponse builder into lightrag/api/routers/query_streaming.py while keeping query_routes.py as the compatibility import surface."
+
+  - id: X1
+    title: "Extract non-stream query execution helpers from query_routes.py"
+    priority: 27
+    status: completed
+    depends_on: [W1]
+    area: "api"
+    problem_statement: "The query API router still owns non-stream query execution and /query/data response normalization alongside route registration, including an invalid fallback path that omits required metadata."
+    root_cause_hypothesis: "Non-stream query behavior evolved inline in query_routes.py because it looked small compared with the streaming path, so request-to-param conversion and data-response normalization never converged on a dedicated execution seam."
+    definition_of_done:
+      - "Non-stream /query execution and /query/data normalization live in a dedicated helper module"
+      - "query_routes.py preserves the helper import surface through compatibility aliases"
+      - "Focused tests cover helper re-exports, stream=False enforcement, and the invalid /query/data fallback shape"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/query_routes.py lightrag/api/routers/query_execution.py tests/test_query_execution.py"
+      - "python -m pytest tests/test_query_execution.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/query_routes.py"
+      - "lightrag/api/routers/query_execution.py"
+      - "tests/test_query_execution.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving non-stream /query execution and /query/data response normalization into lightrag/api/routers/query_execution.py while keeping query_routes.py as the compatibility import surface and fixing the invalid fallback path to include empty metadata."
