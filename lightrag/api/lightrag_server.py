@@ -9,10 +9,10 @@ import logging
 import logging.config
 import sys
 import uvicorn
-from pathlib import Path
 import configparser
 from dotenv import load_dotenv
 from lightrag._pipmaster import get_pipmaster
+from lightrag.api.rag_app_runtime import build_rag_app_runtime
 from lightrag.api.app_cors import configure_cors
 from lightrag.api.app_factory_config import build_app_kwargs
 from lightrag.api.app_lifespan import create_app_lifespan
@@ -21,7 +21,6 @@ from lightrag.api.query_validation_handlers import (
     create_query_validation_exception_handler,
 )
 from lightrag.api.rag_runtime_dependencies import build_rag_runtime_dependencies
-from lightrag.api.rag_runtime_factory import build_rag
 from lightrag.api.utils_api import display_splash_screen, check_env_file
 from .config import (
     global_args,
@@ -62,20 +61,9 @@ def create_app(args):
         api_key=startup_state.api_key, api_version=__api_version__
     )
 
-    # Create working directory if it doesn't exist
-    Path(args.working_dir).mkdir(parents=True, exist_ok=True)
+    app_runtime = build_rag_app_runtime(args, runtime_dependencies)
 
-    rag = build_rag(
-        args=args,
-        config_cache=runtime_dependencies.config_cache,
-        llm_timeout=runtime_dependencies.llm_timeout,
-        embedding_timeout=runtime_dependencies.embedding_timeout,
-        embedding_func=runtime_dependencies.embedding_func,
-        rerank_model_func=runtime_dependencies.rerank_model_func,
-        ollama_server_infos=runtime_dependencies.ollama_server_infos,
-    )
-
-    app = FastAPI(lifespan=create_app_lifespan(rag), **app_kwargs)
+    app = FastAPI(lifespan=create_app_lifespan(app_runtime.rag), **app_kwargs)
 
     app.exception_handler(RequestValidationError)(
         create_query_validation_exception_handler()
@@ -86,10 +74,10 @@ def create_app(args):
     register_app_routes(
         app,
         build_route_registry_context(
-            rag=rag,
+            rag=app_runtime.rag,
             startup_state=startup_state,
             args=args,
-            rerank_enabled=runtime_dependencies.rerank_model_func is not None,
+            rerank_enabled=app_runtime.rerank_enabled,
         ),
     )
 

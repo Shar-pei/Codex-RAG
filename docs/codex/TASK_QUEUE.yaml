@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "BQ1 is now the highest-priority pending task: extract the remaining RAG runtime bootstrap from `lightrag_server.py` after BP1 moved pre-RAG dependency assembly behind a dedicated helper"
+  current_focus: "BR1 is now the highest-priority pending task: extract FastAPI app shell assembly from `lightrag_server.py` after BQ1 moved the remaining RAG runtime bootstrap behind a helper"
 
 tasks:
   - id: A0
@@ -1892,7 +1892,7 @@ tasks:
   - id: BQ1
     title: "Extract RAG runtime bootstrap from lightrag_server.py"
     priority: 72
-    status: pending
+    status: completed
     depends_on: [BP1]
     area: "api"
     problem_statement: "After `BP1`, the FastAPI server entrypoint still prepares the working directory, calls `build_rag(...)`, and derives rerank-enabled route context inline, so app construction still owns one remaining RAG runtime bootstrap block."
@@ -1914,3 +1914,31 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Queued after BP1 root-cause analysis showed the remaining runtime hotspot in `create_app()` is the last RAG runtime bootstrap block rather than the already-extracted dependency assembly."
+      - "Completed by introducing `lightrag/api/rag_app_runtime.py` for working-directory preparation plus `build_rag(...)` bootstrap, and rewiring `lightrag_server.py` to consume that helper."
+      - "Focused regression coverage lives in `tests/test_rag_app_runtime.py`."
+
+  - id: BR1
+    title: "Extract FastAPI app shell assembly from lightrag_server.py"
+    priority: 73
+    status: pending
+    depends_on: [BQ1]
+    area: "api"
+    problem_statement: "After `BQ1`, the FastAPI server entrypoint still assembles the `FastAPI` app shell inline by instantiating the app, registering the query validation handler, configuring CORS, and wiring routes from the assembled context."
+    root_cause_hypothesis: "Previous tasks isolated runtime dependencies and runtime bootstrap, but `create_app()` still owns the last app-shell assembly sequence because the app object construction, exception handler wiring, and route-registration call were never grouped behind one helper."
+    definition_of_done:
+      - "A dedicated helper module owns the remaining FastAPI app shell assembly consumed by `create_app()`"
+      - "`lightrag_server.py` uses that helper instead of instantiating and wiring the app shell inline"
+      - "The existing lifespan wiring, query validation handler, CORS behavior, and route-registration inputs remain unchanged"
+      - "Focused tests cover representative app-shell wiring and context forwarding"
+    validation_commands:
+      - "python -m ruff check lightrag/api/app_shell_factory.py lightrag/api/lightrag_server.py tests/test_app_shell_factory.py"
+      - "python -m pytest tests/test_app_shell_factory.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/app_shell_factory.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_app_shell_factory.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BQ1 root-cause analysis showed the remaining hotspot in `create_app()` is the final FastAPI app shell assembly rather than runtime bootstrap."

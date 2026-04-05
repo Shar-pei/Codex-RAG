@@ -1251,3 +1251,19 @@
   - `lightrag_server.py` sheds another orchestration-heavy runtime assembly block and moves incrementally closer to pure app assembly.
   - The extracted seam now has focused regression coverage for bundle assembly ordering and helper-call forwarding in `tests/test_rag_runtime_dependencies.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-080: BQ1 moves the remaining RAG runtime bootstrap behind a helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BP1`, `lightrag/api/lightrag_server.py` no longer assembled the pre-RAG dependency bundle inline, but it still prepared the working directory, invoked `build_rag(...)`, and derived `rerank_enabled` for route-context assembly.
+  - Those steps formed one last runtime-bootstrap contract over `args` plus the assembled dependency bundle.
+  - Keeping them in `create_app()` left the app-factory module responsible for the final runtime bootstrap even after dependency assembly and `LightRAG` construction had already been extracted.
+- Decision:
+  - Introduce `lightrag/api/rag_app_runtime.py` with `build_rag_app_runtime(...)` as the authoritative helper for working-directory preparation, runtime-factory invocation, and `rerank_enabled` derivation.
+  - Rewire `lightrag/api/lightrag_server.py` to consume that helper instead of coordinating those runtime-bootstrap steps inline.
+  - Preserve the existing working-directory creation, runtime-factory inputs, and rerank-enabled behavior without widening this run into the remaining FastAPI app-shell assembly block.
+- Impact:
+  - `lightrag_server.py` sheds another runtime-bootstrap responsibility and moves incrementally closer to pure app assembly.
+  - The extracted seam now has focused regression coverage for working-directory preparation, runtime-factory forwarding, and rerank-enabled state in `tests/test_rag_app_runtime.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
