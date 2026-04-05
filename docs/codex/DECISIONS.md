@@ -709,3 +709,19 @@
   - `ollama_api.py` sheds another self-contained helper block and moves closer to a runtime-focused router module.
   - Ollama request parsing and query-prefix behavior now have focused regression coverage without importing the full router runtime.
   - A follow-on task can target streaming execution helpers or metadata endpoint shaping separately from the extracted front-door helper seam.
+
+## DCR-046: AI1 moves Ollama metadata payload shaping behind a metadata-builder seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AH1`, the narrowest remaining non-runtime block in `lightrag/api/routers/ollama_api.py` was the trio of metadata endpoints `/version`, `/tags`, and `/ps`.
+  - Those handlers build fixed or server-info-derived response payloads, but they do not depend on the request parsing, query execution, or streaming control flow used by `/generate` and `/chat`.
+  - Keeping the payload assembly inline continued to make `ollama_api.py` responsible for both metadata response shaping and runtime completion behavior.
+- Decision:
+  - Introduce `lightrag/api/routers/ollama_metadata_endpoints.py` for the Ollama metadata response builders.
+  - Reuse and re-export those builders from `lightrag/api/routers/ollama_api.py` so existing imports remain stable.
+  - Leave `/generate` and `/chat` runtime behavior in `ollama_api.py` for now instead of widening this run into execution-helper extraction.
+- Impact:
+  - `ollama_api.py` sheds its remaining static metadata response block and moves closer to a runtime-focused router module.
+  - Ollama metadata payload shaping now has focused regression coverage for version, tags, and running-model responses without importing the full router runtime.
+  - A follow-on task can target generate/chat execution helpers separately from the extracted metadata seam.

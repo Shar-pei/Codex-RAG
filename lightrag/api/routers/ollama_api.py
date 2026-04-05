@@ -8,6 +8,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from lightrag import LightRAG, QueryParam
+from lightrag.api.routers.ollama_metadata_endpoints import (
+    build_ollama_running_models_response as _build_ollama_running_models_response,
+    build_ollama_tags_response as _build_ollama_tags_response,
+    build_ollama_version_response as _build_ollama_version_response,
+)
 from lightrag.api.routers.ollama_models import (
     OllamaChatRequest as _OllamaChatRequest,
     OllamaChatResponse as _OllamaChatResponse,
@@ -48,6 +53,9 @@ OllamaPsResponse = _OllamaPsResponse
 parse_request_body = _parse_request_body
 estimate_tokens = _estimate_tokens
 parse_query_mode = _parse_query_mode
+build_ollama_version_response = _build_ollama_version_response
+build_ollama_tags_response = _build_ollama_tags_response
+build_ollama_running_models_response = _build_ollama_running_models_response
 
 
 class OllamaAPI:
@@ -66,54 +74,17 @@ class OllamaAPI:
         @self.router.get("/version", dependencies=[Depends(combined_auth)])
         async def get_version():
             """Get Ollama version information"""
-            return OllamaVersionResponse(version="0.9.3")
+            return build_ollama_version_response()
 
         @self.router.get("/tags", dependencies=[Depends(combined_auth)])
         async def get_tags():
             """Return available models acting as an Ollama server"""
-            return OllamaTagResponse(
-                models=[
-                    {
-                        "name": self.ollama_server_infos.LIGHTRAG_MODEL,
-                        "model": self.ollama_server_infos.LIGHTRAG_MODEL,
-                        "modified_at": self.ollama_server_infos.LIGHTRAG_CREATED_AT,
-                        "size": self.ollama_server_infos.LIGHTRAG_SIZE,
-                        "digest": self.ollama_server_infos.LIGHTRAG_DIGEST,
-                        "details": {
-                            "parent_model": "",
-                            "format": "gguf",
-                            "family": self.ollama_server_infos.LIGHTRAG_NAME,
-                            "families": [self.ollama_server_infos.LIGHTRAG_NAME],
-                            "parameter_size": "13B",
-                            "quantization_level": "Q4_0",
-                        },
-                    }
-                ]
-            )
+            return build_ollama_tags_response(self.ollama_server_infos)
 
         @self.router.get("/ps", dependencies=[Depends(combined_auth)])
         async def get_running_models():
             """List Running Models - returns currently running models"""
-            return OllamaPsResponse(
-                models=[
-                    {
-                        "name": self.ollama_server_infos.LIGHTRAG_MODEL,
-                        "model": self.ollama_server_infos.LIGHTRAG_MODEL,
-                        "size": self.ollama_server_infos.LIGHTRAG_SIZE,
-                        "digest": self.ollama_server_infos.LIGHTRAG_DIGEST,
-                        "details": {
-                            "parent_model": "",
-                            "format": "gguf",
-                            "family": "llama",
-                            "families": ["llama"],
-                            "parameter_size": "7.2B",
-                            "quantization_level": "Q4_0",
-                        },
-                        "expires_at": "2050-12-31T14:38:31.83753-07:00",
-                        "size_vram": self.ollama_server_infos.LIGHTRAG_SIZE,
-                    }
-                ]
-            )
+            return build_ollama_running_models_response(self.ollama_server_infos)
 
         @self.router.post(
             "/generate", dependencies=[Depends(combined_auth)], include_in_schema=True

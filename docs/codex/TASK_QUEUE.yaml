@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "AH1 completed by extracting Ollama request helpers out of ollama_api.py, reducing the largest active API router's mixed parsing-and-runtime responsibility"
+  current_focus: "AI1 completed by extracting Ollama metadata response builders out of ollama_api.py, reducing the largest active API router's remaining static response shaping"
 
 tasks:
   - id: A0
@@ -943,3 +943,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving Ollama request parsing, token estimation, and query-prefix helpers into lightrag/api/routers/ollama_request_helpers.py while keeping ollama_api.py as the compatibility import surface."
+
+  - id: AI1
+    title: "Extract Ollama metadata response builders from ollama_api.py"
+    priority: 38
+    status: completed
+    depends_on: [AH1]
+    area: "api"
+    problem_statement: "The Ollama-compatible API module still embeds static response-shaping logic for the /version, /tags, and /ps metadata endpoints alongside router setup and runtime generate/chat behavior."
+    root_cause_hypothesis: "Ollama metadata payload assembly accumulated directly inside ollama_api.py because those endpoints looked small individually, even though their response-building logic depends only on server info and API contracts rather than route state."
+    definition_of_done:
+      - "Ollama metadata response builders live in a dedicated module"
+      - "ollama_api.py preserves the existing helper import surface through compatibility re-exports"
+      - "Focused tests cover helper re-exports plus key version, tag, and running-model response fields"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/ollama_api.py lightrag/api/routers/ollama_metadata_endpoints.py tests/test_ollama_metadata_endpoints.py"
+      - "python -m pytest tests/test_ollama_metadata_endpoints.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/ollama_api.py"
+      - "lightrag/api/routers/ollama_metadata_endpoints.py"
+      - "tests/test_ollama_metadata_endpoints.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving Ollama metadata response builders for /version, /tags, and /ps into lightrag/api/routers/ollama_metadata_endpoints.py while keeping ollama_api.py as the compatibility import surface."
