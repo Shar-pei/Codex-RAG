@@ -393,3 +393,19 @@
   - `document_routes.py` now focuses much more tightly on route composition and endpoint behavior instead of long-running background workflows.
   - The deletion pipeline can be tested directly for status transitions and pending-request handoff without importing the full route module.
   - Follow-on cleanup can target the remaining route-local clear/status/cancel logic as smaller seams instead of editing a mixed router-and-worker file.
+
+## DCR-026: O1 moves the clear-documents workflow behind a clear-pipeline seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `N1`, the largest remaining non-route block in `lightrag/api/routers/document_routes.py` was `clear_documents()`, which coordinated shared pipeline status, storage `drop()` calls, and input-directory cleanup inline with the route definition.
+  - That workflow does not depend on FastAPI request state or response shaping; it depends on `LightRAG`, the document manager, and shared storage coordination.
+  - The inline implementation also tracked async `drop()` results separately from the original storage list, which made success logging fragile whenever some storage slots were `None`.
+- Decision:
+  - Introduce `lightrag/api/routers/document_clear_pipeline.py` for `clear_documents_pipeline(...)`.
+  - Import that helper back into `lightrag/api/routers/document_routes.py` so existing imports from `document_routes` remain stable.
+  - Pair `drop()` results with only the active storages inside the extracted helper so optional `None` storage slots do not misalign logging and result handling.
+- Impact:
+  - `document_routes.py` moves closer to a pure route-composition layer instead of embedding another storage lifecycle workflow.
+  - The clear-documents behavior can now be tested directly for active-storage handling and top-level-only file cleanup without importing the full routing module.
+  - Follow-on API cleanup can focus on route-local status and query endpoints instead of storage-clearing internals.

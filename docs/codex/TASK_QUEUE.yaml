@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "N1 completed by extracting document deletion pipeline helpers out of document_routes.py, leaving the document API router with a narrower routing-and-pipeline responsibility"
+  current_focus: "O1 completed by extracting the clear-documents workflow out of document_routes.py, leaving the document API router closer to a pure route-composition layer"
 
 tasks:
   - id: A0
@@ -442,3 +442,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving the batch document deletion background worker into lightrag/api/routers/document_deletion_pipeline.py while keeping document_routes.py as the compatibility import surface."
+
+  - id: O1
+    title: "Extract the clear-documents workflow from document_routes.py"
+    priority: 18
+    status: completed
+    depends_on: [N1]
+    area: "api"
+    problem_statement: "The document API router still owns the storage-clearing workflow that coordinates pipeline state, storage drop operations, and input-directory cleanup."
+    root_cause_hypothesis: "The clear-documents endpoint evolved as a long inline workflow inside document_routes.py because it was triggered directly by a route, even though the logic depends on shared pipeline state and storage adapters rather than route state."
+    definition_of_done:
+      - "The clear-documents workflow lives in a dedicated pipeline module"
+      - "document_routes.py preserves the existing import surface by reusing the extracted clear-documents seam"
+      - "Focused tests cover the compatibility import path and the top-level-only input-file cleanup behavior"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/document_routes.py lightrag/api/routers/document_clear_pipeline.py tests/test_document_clear_pipeline.py"
+      - "python -m pytest tests/test_document_clear_pipeline.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/document_routes.py"
+      - "lightrag/api/routers/document_clear_pipeline.py"
+      - "tests/test_document_clear_pipeline.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving the clear-documents storage-and-filesystem workflow into lightrag/api/routers/document_clear_pipeline.py while keeping document_routes.py as the compatibility import surface."
