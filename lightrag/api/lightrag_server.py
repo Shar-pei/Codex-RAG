@@ -2,9 +2,8 @@
 LightRAG FastAPI Server
 """
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
 import os
 import logging
 import logging.config
@@ -18,6 +17,9 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from lightrag._pipmaster import get_pipmaster
 from lightrag.api.frontend_build_checker import check_frontend_build
+from lightrag.api.query_validation_handlers import (
+    create_query_validation_exception_handler,
+)
 from lightrag.api.utils_api import display_splash_screen, check_env_file
 from .config import (
     global_args,
@@ -256,34 +258,9 @@ def create_app(args):
 
     app = FastAPI(**app_kwargs)
 
-    # Add custom validation error handler for /query/data endpoint
-    @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(
-        request: Request, exc: RequestValidationError
-    ):
-        # Check if this is a request to /query/data endpoint
-        if request.url.path.endswith("/query/data"):
-            # Extract error details
-            error_details = []
-            for error in exc.errors():
-                field_path = " -> ".join(str(loc) for loc in error["loc"])
-                error_details.append(f"{field_path}: {error['msg']}")
-
-            error_message = "; ".join(error_details)
-
-            # Return in the expected format for /query/data
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "status": "failure",
-                    "message": f"Validation error: {error_message}",
-                    "data": {},
-                    "metadata": {},
-                },
-            )
-        else:
-            # For other endpoints, return the default FastAPI validation error
-            return JSONResponse(status_code=422, content={"detail": exc.errors()})
+    app.exception_handler(RequestValidationError)(
+        create_query_validation_exception_handler()
+    )
 
     def get_cors_origins():
         """Get allowed origins from global_args

@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after AV1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after AW1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1328,3 +1328,31 @@ tasks:
       - "Queued after AU1 root-cause analysis showed the next narrow self-contained seam in lightrag_server.py is the frontend build/freshness probe rather than the larger model-binding setup."
       - "Completed by introducing lightrag/api/frontend_build_checker.py for the WebUI build existence/freshness probe, rewiring lightrag_server.py to import it, and preserving the `check_frontend_build` compatibility surface from the server module."
       - "Focused regression coverage lives in tests/test_frontend_build_checker.py."
+
+  - id: AW1
+    title: "Extract the /query/data validation error handler from lightrag_server.py"
+    priority: 52
+    status: completed
+    depends_on: [AV1]
+    area: "api"
+    problem_statement: "The FastAPI server entrypoint still defines the custom RequestValidationError handler for `/query/data`, so app startup owns endpoint-specific validation formatting."
+    root_cause_hypothesis: "Route and startup extractions focused on bigger seams first, but the `/query/data` validation override stayed inside `create_app()` because it was a single closure over FastAPI, so that endpoint-specific error-formatting contract never became its own helper."
+    definition_of_done:
+      - "A dedicated helper module owns the `/query/data` validation error formatting contract"
+      - "`lightrag_server.py` registers that helper instead of defining the validation handler inline"
+      - "The existing validation behavior for `/query/data` and all other endpoints remains unchanged"
+      - "Focused tests cover both the data-endpoint override and the default 422 fallback behavior"
+    validation_commands:
+      - "python -m ruff check lightrag/api/query_validation_handlers.py lightrag/api/lightrag_server.py tests/test_query_validation_handlers.py"
+      - "python -m pytest tests/test_query_validation_handlers.py -q"
+    risk_level: "low"
+    expected_files:
+      - "lightrag/api/query_validation_handlers.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_query_validation_handlers.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after AV1 root-cause analysis showed the next narrow self-contained seam in create_app() is the endpoint-specific validation handler for `/query/data`."
+      - "Completed by introducing lightrag/api/query_validation_handlers.py for the `/query/data` validation formatting contract and rewiring lightrag_server.py to register that helper instead of defining the handler inline."
+      - "Focused regression coverage lives in tests/test_query_validation_handlers.py."

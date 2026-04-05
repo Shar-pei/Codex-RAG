@@ -931,3 +931,19 @@
   - `lightrag_server.py` sheds one self-contained startup diagnostic block and moves closer to a pure app-construction module.
   - The frontend build probe now has focused regression coverage for missing-build, up-to-date, and outdated-source states without importing the full server entrypoint flow.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-060: AW1 moves `/query/data` validation formatting behind a validation-helper seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AV1`, `lightrag/api/lightrag_server.py` still defined a custom `RequestValidationError` handler inline for `/query/data`.
+  - That handler is a self-contained endpoint-specific formatting rule: `/query/data` gets a 400 response in the data-oriented shape, while other endpoints still use the default 422 validation structure.
+  - Keeping it inline meant the server entrypoint still owned endpoint-specific error-formatting policy alongside app construction.
+- Decision:
+  - Introduce `lightrag/api/query_validation_handlers.py` as the authoritative home for the `/query/data` validation formatting contract.
+  - Rewire `lightrag/api/lightrag_server.py` to register the extracted helper instead of defining the validation handler inline.
+  - Preserve the existing behavior: `/query/data` stays on the custom 400 response shape, and all other endpoints still fall back to the default 422 error body.
+- Impact:
+  - `lightrag_server.py` sheds another self-contained startup/registration block and moves closer to pure app construction.
+  - The `/query/data` validation override now has focused regression coverage without importing the whole server entrypoint flow.
+  - No external API paths or payload shapes changed beyond preserving the existing behavior, so `docs/codex/CONTRACTS.md` did not require an update for this task.
