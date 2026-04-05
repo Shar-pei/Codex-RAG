@@ -36,6 +36,10 @@ If you want the shortest possible restart instruction, use:
 - update docs and task metadata
 - commit and push the current `codex/*` branch
 
+## Web UI Command Note
+- Use `bun install --cwd lightrag_webui --frozen-lockfile` for install validation.
+- Use `bun --cwd lightrag_webui run build` for the production build validation; `bun run build --cwd lightrag_webui` is parsed as a different script shape by Bun in this environment.
+
 ## What Automation Must Not Do
 - push directly to `main`
 - rewrite history

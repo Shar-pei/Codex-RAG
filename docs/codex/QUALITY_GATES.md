@@ -27,7 +27,7 @@ Every task selected from the task queue must satisfy all applicable rules:
   - `python -m pytest tests/test_chunking.py tests/test_write_json_optimization.py -m "not integration"`
 - Web UI build:
   - `bun install --cwd lightrag_webui --frozen-lockfile`
-  - `bun run build --cwd lightrag_webui`
+  - `bun --cwd lightrag_webui run build`
 - Combined Phase A baseline:
   - `python scripts/quality_gate.py --profile phase-a`
 

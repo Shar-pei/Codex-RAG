@@ -1,11 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import ThemeProvider from '@/components/ThemeProvider'
-import TabVisibilityProvider from '@/contexts/TabVisibilityProvider'
 import ApiKeyAlert from '@/components/ApiKeyAlert'
 import StatusIndicator from '@/components/status/StatusIndicator'
 import { SiteInfo, webuiPrefix } from '@/lib/constants'
 import { useBackendState, useAuthStore } from '@/stores/state'
 import { useSettingsStore } from '@/stores/settings'
+import { APP_TABS, type AppTab } from '@/lib/appTabs'
 import { getAuthStatus } from '@/api/lightrag'
 import SiteHeader from '@/features/SiteHeader'
 import { InvalidApiKeyError, RequireApiKeError } from '@/api/lightrag'
@@ -17,6 +16,13 @@ import RetrievalTesting from '@/features/RetrievalTesting'
 import ApiSite from '@/features/ApiSite'
 
 import { Tabs, TabsContent } from '@/components/ui/Tabs'
+
+const TAB_COMPONENTS: Record<AppTab, () => JSX.Element> = {
+  documents: DocumentManager,
+  'knowledge-graph': GraphViewer,
+  retrieval: RetrievalTesting,
+  api: ApiSite
+}
 
 function App() {
   const message = useBackendState.use.message()
@@ -150,7 +156,7 @@ function App() {
   }, []); // Empty dependency array ensures it only runs once on mount
 
   const handleTabChange = useCallback(
-    (tab: string) => useSettingsStore.getState().setCurrentTab(tab as any),
+    (tab: string) => useSettingsStore.getState().setCurrentTab(tab as AppTab),
     []
   )
 
@@ -163,67 +169,49 @@ function App() {
   }, [message])
 
   return (
-    <ThemeProvider>
-      <TabVisibilityProvider>
-        {initializing ? (
-          // Loading state while initializing with simplified header
-          <div className="flex h-screen w-screen flex-col">
-            {/* Simplified header during initialization - matches SiteHeader structure */}
-            <header className="border-border/40 bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50 flex h-10 w-full border-b px-4 backdrop-blur">
-              <div className="min-w-[200px] w-auto flex items-center">
-                <a href={webuiPrefix} className="flex items-center gap-2">
-                  <ZapIcon className="size-4 text-emerald-400" aria-hidden="true" />
-                  <span className="font-bold md:inline-block">{SiteInfo.name}</span>
-                </a>
-              </div>
-
-              {/* Empty middle section to maintain layout */}
-              <div className="flex h-10 flex-1 items-center justify-center">
-              </div>
-
-              {/* Empty right section to maintain layout */}
-              <nav className="w-[200px] flex items-center justify-end">
-              </nav>
-            </header>
-
-            {/* Loading indicator in content area */}
-            <div className="flex flex-1 items-center justify-center">
-              <div className="text-center">
-                <div className="mb-2 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto"></div>
-                <p>Initializing...</p>
-              </div>
-            </div>
+    initializing ? (
+      <div className="flex h-screen w-screen flex-col">
+        <header className="border-border/40 bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50 flex h-10 w-full border-b px-4 backdrop-blur">
+          <div className="min-w-[200px] w-auto flex items-center">
+            <a href={webuiPrefix} className="flex items-center gap-2">
+              <ZapIcon className="size-4 text-emerald-400" aria-hidden="true" />
+              <span className="font-bold md:inline-block">{SiteInfo.name}</span>
+            </a>
           </div>
-        ) : (
-          // Main content after initialization
-          <main className="flex h-screen w-screen overflow-hidden">
-            <Tabs
-              defaultValue={currentTab}
-              className="!m-0 flex grow flex-col !p-0 overflow-hidden"
-              onValueChange={handleTabChange}
-            >
-              <SiteHeader />
-              <div className="relative grow">
-                <TabsContent value="documents" className="absolute top-0 right-0 bottom-0 left-0 overflow-auto">
-                  <DocumentManager />
+          <div className="flex h-10 flex-1 items-center justify-center" />
+          <nav className="w-[200px] flex items-center justify-end" />
+        </header>
+
+        <div className="flex flex-1 items-center justify-center">
+          <div className="text-center">
+            <div className="mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+            <p>Initializing...</p>
+          </div>
+        </div>
+      </div>
+    ) : (
+      <main className="flex h-screen w-screen overflow-hidden">
+        <Tabs
+          value={currentTab}
+          className="!m-0 flex grow flex-col !p-0 overflow-hidden"
+          onValueChange={handleTabChange}
+        >
+          <SiteHeader />
+          <div className="relative grow">
+            {APP_TABS.map((tab) => {
+              const TabComponent = TAB_COMPONENTS[tab.id]
+              return (
+                <TabsContent key={tab.id} value={tab.id} className={tab.contentClassName}>
+                  <TabComponent />
                 </TabsContent>
-                <TabsContent value="knowledge-graph" className="absolute top-0 right-0 bottom-0 left-0 overflow-hidden">
-                  <GraphViewer />
-                </TabsContent>
-                <TabsContent value="retrieval" className="absolute top-0 right-0 bottom-0 left-0 overflow-hidden">
-                  <RetrievalTesting />
-                </TabsContent>
-                <TabsContent value="api" className="absolute top-0 right-0 bottom-0 left-0 overflow-hidden">
-                  <ApiSite />
-                </TabsContent>
-              </div>
-            </Tabs>
-            {enableHealthCheck && <StatusIndicator />}
-            <ApiKeyAlert open={apiKeyAlertOpen} onOpenChange={handleApiKeyAlertOpenChange} />
-          </main>
-        )}
-      </TabVisibilityProvider>
-    </ThemeProvider>
+              )
+            })}
+          </div>
+        </Tabs>
+        {enableHealthCheck && <StatusIndicator />}
+        <ApiKeyAlert open={apiKeyAlertOpen} onOpenChange={handleApiKeyAlertOpenChange} />
+      </main>
+    )
   )
 }
 

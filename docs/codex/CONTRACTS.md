@@ -25,7 +25,7 @@ This file freezes the current public surfaces that later refactors must either p
   - `uvicorn lightrag.api.lightrag_server:app --reload`
 - Build Web UI:
   - `bun install --cwd lightrag_webui --frozen-lockfile`
-  - `bun run build --cwd lightrag_webui`
+  - `bun --cwd lightrag_webui run build`
 
 ## HTTP API Surface
 - App factory currently lives in `lightrag/api/lightrag_server.py`
@@ -97,11 +97,14 @@ Current `config.ini.example` has sections for:
 
 ## Web UI Surface
 - Current authenticated app shell lives in `lightrag_webui/src/App.tsx`
+- Primary authenticated journeys are registered in `lightrag_webui/src/lib/appTabs.ts`
 - Current major user-visible tabs:
   - documents
   - knowledge graph
   - retrieval
   - api
+- `useSettingsStore.currentTab` is the authoritative selected-tab state for the authenticated shell, and the Radix Tabs shell is controlled from that persisted value.
+- Inactive authenticated tabs remain force-mounted so the graph view and API docs iframe preserve runtime state without a second visibility context.
 - Login flow is routed through `lightrag_webui/src/AppRouter.tsx`
 
 ## Deployment Surface

@@ -3,10 +3,10 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import { createSelectors } from '@/lib/utils'
 import { defaultQueryLabel } from '@/lib/constants'
 import { Message, QueryRequest } from '@/api/lightrag'
+import { DEFAULT_APP_TAB, type AppTab } from '@/lib/appTabs'
 
 type Theme = 'dark' | 'light' | 'system'
 type Language = 'en' | 'zh' | 'fr' | 'ar' | 'zh_TW'
-type Tab = 'documents' | 'knowledge-graph' | 'retrieval' | 'api'
 
 interface SettingsState {
   // Document manager settings
@@ -76,8 +76,8 @@ interface SettingsState {
   enableHealthCheck: boolean
   setEnableHealthCheck: (enable: boolean) => void
 
-  currentTab: Tab
-  setCurrentTab: (tab: Tab) => void
+  currentTab: AppTab
+  setCurrentTab: (tab: AppTab) => void
 
   // Search label dropdown refresh trigger (non-persistent, runtime only)
   searchLabelDropdownRefreshTrigger: number
@@ -114,7 +114,7 @@ const useSettingsStoreBase = create<SettingsState>()(
 
       apiKey: null,
 
-      currentTab: 'documents',
+      currentTab: DEFAULT_APP_TAB,
       showFileName: false,
       documentsPageSize: 10,
 
@@ -184,7 +184,7 @@ const useSettingsStoreBase = create<SettingsState>()(
 
       setApiKey: (apiKey: string | null) => set({ apiKey }),
 
-      setCurrentTab: (tab: Tab) => set({ currentTab: tab }),
+      setCurrentTab: (tab: AppTab) => set({ currentTab: tab }),
 
       setRetrievalHistory: (history: Message[]) => set({ retrievalHistory: history }),
 
@@ -254,7 +254,7 @@ const useSettingsStoreBase = create<SettingsState>()(
           state.apiKey = null
         }
         if (version < 5) {
-          state.currentTab = 'documents'
+          state.currentTab = DEFAULT_APP_TAB
         }
         if (version < 6) {
           state.querySettings = {

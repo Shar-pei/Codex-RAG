@@ -168,3 +168,35 @@
   - The app factory and route registration now live in separate modules without changing externally visible route paths.
   - Auth and route dependencies are more explicit at the composition boundary, and focused tests can validate route wiring without booting the full server lifecycle.
   - Validation for `D1` stays scoped to the touched API seam because repo-wide Ruff still reports unrelated baseline lint debt in modules such as `lightrag/llm/hf.py`, `lightrag/llm/my_hf.py`, `lightrag/rerank.py`, and `lightrag/semantic_chunking.py`.
+
+## DCR-013: Push of the validated D1 commit is blocked by outbound GitHub connectivity
+- Date: 2026-04-05
+- Status: blocked
+- Context:
+  - `D1` was validated locally and committed as `51802a7` on `codex/lightrag`.
+  - Two consecutive push attempts to `origin` failed after commit creation:
+    - `Recv failure: Connection was reset`
+    - `Failed to connect to github.com port 443 after 22111 ms`
+- Decision:
+  - Leave the validated commit in local history without rewriting it.
+  - Stop after documenting the transport blocker so the next run can resume by retrying `git push origin codex/lightrag` before moving on to `D2`.
+- Impact:
+  - The branch is locally ahead of `origin/codex/lightrag` by the validated `D1` commit.
+  - The next run should treat push recovery as the immediate unblock step even though the queue's next code task is `D2`.
+
+## DCR-014: D2 reduces the Web UI shell to one shared tab registry and one tab owner
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - `lightrag_webui/src/App.tsx` duplicated the primary tab list while also letting Radix Tabs keep its own internal selected value via `defaultValue`.
+  - A separate `TabVisibility` context and `TabContent` helper existed even though all four tabs were intentionally kept mounted, and `TabVisibilityProvider` forced every tab to `true` on each tab change.
+  - `ApiSite` depended on that redundant visibility layer just to hide an iframe that Radix already hides through tab state.
+- Decision:
+  - Introduce a shared tab registry in `lightrag_webui/src/lib/appTabs.ts` to document the four primary user journeys in one place.
+  - Make the persisted `currentTab` value in `useSettingsStore` the authoritative tab owner by wiring Radix Tabs as a controlled component.
+  - Remove the unused `TabVisibility` context and `TabContent` wrapper, and let the force-mounted Radix tab shell preserve heavyweight tab content such as the API docs iframe.
+  - Correct the documented Web UI build command to `bun --cwd lightrag_webui run build`, which matches Bun's CLI parsing in this environment.
+- Impact:
+  - The documents, knowledge graph, retrieval, and API journeys are now defined once and rendered consistently by both the header and the content shell.
+  - The Web UI keeps preserved tab content without parallel visibility state or duplicate provider ownership.
+  - Future UI simplification can extend the shared registry instead of copying tab definitions across files.

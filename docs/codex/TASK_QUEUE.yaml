@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "D1 completed via API route registrar extraction; next closed-loop task is D2 Web UI simplification"
+  current_focus: "D2 completed via shared Web UI tab registry simplification; next closed-loop task is E1 benchmark and acceptance reporting"
 
 tasks:
   - id: A0
@@ -158,7 +158,7 @@ tasks:
   - id: D2
     title: "Trim Web UI to core user journeys"
     priority: 7
-    status: pending
+    status: completed
     depends_on: [D1]
     area: "webui"
     problem_statement: "The Web UI needs clearer ownership of state and stronger focus on the core product flows."
@@ -169,13 +169,15 @@ tasks:
       - "The app still builds cleanly"
     validation_commands:
       - "bun install --cwd lightrag_webui --frozen-lockfile"
-      - "bun run build --cwd lightrag_webui"
+      - "bun --cwd lightrag_webui run build"
     risk_level: "medium"
     expected_files:
       - "lightrag_webui/src/*"
       - "docs/codex/CONTRACTS.md"
     notes:
       - "Prefer user-journey clarity over sweeping visual redesign."
+      - "Completed by centralizing the four primary tabs in lightrag_webui/src/lib/appTabs.ts, making the persisted currentTab store the single source of truth for Radix Tabs, and removing the redundant TabVisibility context and unused TabContent path."
+      - "ApiSite now relies on the force-mounted Radix tab shell instead of a parallel visibility context, so the Swagger iframe stays warm without extra state ownership."
 
   - id: E1
     title: "Add performance benchmark harness and final acceptance report"

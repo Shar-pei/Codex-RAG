@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/state'
 import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 import { navigationService } from '@/services/navigation'
+import { APP_TABS } from '@/lib/appTabs'
 import { ZapIcon, GithubIcon, LogOutIcon } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/Tooltip'
 
@@ -37,18 +38,11 @@ function TabsNavigation() {
   return (
     <div className="flex h-8 self-center">
       <TabsList className="h-full gap-2">
-        <NavigationTab value="documents" currentTab={currentTab}>
-          {t('header.documents')}
-        </NavigationTab>
-        <NavigationTab value="knowledge-graph" currentTab={currentTab}>
-          {t('header.knowledgeGraph')}
-        </NavigationTab>
-        <NavigationTab value="retrieval" currentTab={currentTab}>
-          {t('header.retrieval')}
-        </NavigationTab>
-        <NavigationTab value="api" currentTab={currentTab}>
-          {t('header.api')}
-        </NavigationTab>
+        {APP_TABS.map((tab) => (
+          <NavigationTab key={tab.id} value={tab.id} currentTab={currentTab}>
+            {t(tab.labelKey)}
+          </NavigationTab>
+        ))}
       </TabsList>
     </div>
   )
