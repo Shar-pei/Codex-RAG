@@ -505,3 +505,19 @@
   - `query_routes.py` drops another duplicated internal seam and keeps one place for reference enrichment and non-stream payload rules.
   - Focused tests now protect chunk-content enrichment, fallback response text, and stream-fallback payload shaping without importing the full router.
   - A follow-on task can target route-helper extraction or example-cleanup separately from the shared response formatting logic.
+
+## DCR-033: V1 moves query route OpenAPI response metadata behind a docs seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `U1`, `lightrag/api/routers/query_routes.py` still spent most of its remaining size budget on three large inline `responses={...}` dictionaries for `/query`, `/query/stream`, and `/query/data`.
+  - Those dictionaries encode static OpenAPI schemas and examples; they do not depend on `rag`, request state, or route-local control flow.
+  - Keeping them inline makes the router harder to scan and raises the risk that documentation-only edits get tangled with behavior changes in the same hotspot module.
+- Decision:
+  - Introduce `lightrag/api/routers/query_route_docs.py` for the query route OpenAPI response constants.
+  - Reuse those constants from `lightrag/api/routers/query_routes.py` and re-export them there so the router remains the compatibility surface for extracted query helpers.
+  - Keep route handlers and docstrings in `query_routes.py` for now instead of widening this run into a full query route registration split.
+- Impact:
+  - `query_routes.py` sheds its largest remaining static documentation block and moves closer to a route-focused module.
+  - Query response examples and schemas now have a dedicated home that can be updated and tested without editing runtime query logic.
+  - A follow-on task can target handler extraction or shared docstring cleanup separately from the OpenAPI response metadata.

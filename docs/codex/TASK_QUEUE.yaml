@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "U1 completed by extracting query response formatting helpers out of query_routes.py, reducing duplicated result-shaping logic in the largest active router"
+  current_focus: "V1 completed by extracting query route OpenAPI response metadata out of query_routes.py, reducing the largest active router's remaining non-route documentation bulk"
 
 tasks:
   - id: A0
@@ -618,3 +618,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving shared reference enrichment and non-stream response payload shaping into lightrag/api/routers/query_response_helpers.py while keeping query_routes.py as the compatibility import surface."
+
+  - id: V1
+    title: "Extract query route OpenAPI response metadata from query_routes.py"
+    priority: 25
+    status: completed
+    depends_on: [U1]
+    area: "api"
+    problem_statement: "The query API router still embeds three large OpenAPI response metadata blocks inline with route registration, keeping the largest active router dominated by static documentation structures instead of route behavior."
+    root_cause_hypothesis: "Query route examples and response schemas evolved directly inside query_routes.py because decorator-local response metadata had no dedicated home, even though those dictionaries do not depend on FastAPI route state or runtime query execution."
+    definition_of_done:
+      - "Query route OpenAPI response metadata lives in a dedicated module"
+      - "query_routes.py reuses the extracted response metadata constants"
+      - "Focused tests cover response-doc constants and their compatibility re-export path"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/query_routes.py lightrag/api/routers/query_route_docs.py tests/test_query_route_docs.py"
+      - "python -m pytest tests/test_query_route_docs.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/query_routes.py"
+      - "lightrag/api/routers/query_route_docs.py"
+      - "tests/test_query_route_docs.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving the /query, /query/stream, and /query/data OpenAPI response dictionaries into lightrag/api/routers/query_route_docs.py while keeping query_routes.py as the compatibility import surface."
