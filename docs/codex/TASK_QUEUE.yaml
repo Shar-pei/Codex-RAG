@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after AW1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after AX1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1356,3 +1356,31 @@ tasks:
       - "Queued after AV1 root-cause analysis showed the next narrow self-contained seam in create_app() is the endpoint-specific validation handler for `/query/data`."
       - "Completed by introducing lightrag/api/query_validation_handlers.py for the `/query/data` validation formatting contract and rewiring lightrag_server.py to register that helper instead of defining the handler inline."
       - "Focused regression coverage lives in tests/test_query_validation_handlers.py."
+
+  - id: AX1
+    title: "Extract CORS config parsing from lightrag_server.py"
+    priority: 53
+    status: completed
+    depends_on: [AW1]
+    area: "api"
+    problem_statement: "The FastAPI server entrypoint still parses `global_args.cors_origins` and registers the CORS middleware inline, so app startup owns middleware-specific origin parsing."
+    root_cause_hypothesis: "Startup helper extraction focused on more visible seams first, but the CORS parsing closure stayed inside `create_app()` because it was small and only used once, so the CORS configuration contract never became its own helper module."
+    definition_of_done:
+      - "A dedicated helper module owns CORS origin parsing and middleware registration"
+      - "`lightrag_server.py` uses that helper instead of defining the CORS parsing closure inline"
+      - "The existing wildcard and comma-separated origin behaviors remain unchanged"
+      - "Focused tests cover both origin parsing and middleware registration at the extracted seam"
+    validation_commands:
+      - "python -m ruff check lightrag/api/app_cors.py lightrag/api/lightrag_server.py tests/test_app_cors.py"
+      - "python -m pytest tests/test_app_cors.py -q"
+    risk_level: "low"
+    expected_files:
+      - "lightrag/api/app_cors.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_app_cors.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after AW1 root-cause analysis showed the next narrow self-contained seam in create_app() is the CORS origin parsing and middleware registration block."
+      - "Completed by introducing lightrag/api/app_cors.py for origin parsing plus middleware registration, rewiring lightrag_server.py to delegate to that helper, and preserving the existing wildcard and comma-separated origin behaviors."
+      - "Focused regression coverage lives in tests/test_app_cors.py."

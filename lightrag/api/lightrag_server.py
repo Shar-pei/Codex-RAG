@@ -12,10 +12,10 @@ import uvicorn
 from pathlib import Path
 import configparser
 from ascii_colors import ASCIIColors
-from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from lightrag._pipmaster import get_pipmaster
+from lightrag.api.app_cors import configure_cors
 from lightrag.api.frontend_build_checker import check_frontend_build
 from lightrag.api.query_validation_handlers import (
     create_query_validation_exception_handler,
@@ -262,23 +262,7 @@ def create_app(args):
         create_query_validation_exception_handler()
     )
 
-    def get_cors_origins():
-        """Get allowed origins from global_args
-        Returns a list of allowed origins, defaults to ["*"] if not set
-        """
-        origins_str = global_args.cors_origins
-        if origins_str == "*":
-            return ["*"]
-        return [origin.strip() for origin in origins_str.split(",")]
-
-    # Add CORS middleware
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=get_cors_origins(),
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    configure_cors(app, global_args.cors_origins)
 
     # Create working directory if it doesn't exist
     Path(args.working_dir).mkdir(parents=True, exist_ok=True)

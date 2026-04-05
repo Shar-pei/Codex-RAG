@@ -947,3 +947,19 @@
   - `lightrag_server.py` sheds another self-contained startup/registration block and moves closer to pure app construction.
   - The `/query/data` validation override now has focused regression coverage without importing the whole server entrypoint flow.
   - No external API paths or payload shapes changed beyond preserving the existing behavior, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-061: AX1 moves CORS origin parsing behind a CORS-helper seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AW1`, `lightrag/api/lightrag_server.py` still owned a small but self-contained startup block: parsing `global_args.cors_origins` and registering `CORSMiddleware`.
+  - That logic is configuration plumbing rather than app-factory orchestration, but it still lived inline in `create_app()`.
+  - The behavior is narrow and stable: `"*"` must remain a wildcard origin list, and comma-separated origins must stay trimmed and forwarded into the middleware config.
+- Decision:
+  - Introduce `lightrag/api/app_cors.py` as the authoritative home for CORS origin parsing and middleware registration.
+  - Rewire `lightrag/api/lightrag_server.py` to delegate CORS setup through that helper module instead of defining the parsing closure inline.
+  - Preserve the existing wildcard and comma-separated origin behaviors without widening this run into broader middleware extraction.
+- Impact:
+  - `lightrag_server.py` sheds another self-contained startup configuration block and moves closer to pure app construction.
+  - The CORS configuration contract now has focused regression coverage for both parsing and middleware registration.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
