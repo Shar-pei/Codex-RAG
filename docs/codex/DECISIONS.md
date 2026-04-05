@@ -1027,3 +1027,19 @@
   - `lightrag_server.py` sheds another self-contained configuration-preprocessing responsibility and moves closer to app assembly plus runtime wiring only.
   - The extracted cache contract now has focused regression coverage in `tests/test_llm_config_cache.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-066: BC1 moves startup-state derivation behind an app-startup-state helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BB1`, `lightrag/api/lightrag_server.py` still derived several startup-only values inline before app assembly: frontend build availability, the frontend-outdated API version marker, API key precedence, and `DocumentManager` construction.
+  - Those values feed route-registry context and app metadata, but they do not belong to the later `LightRAG` wiring path itself.
+  - A first extraction attempt showed another hidden coupling: importing `DocumentManager` at module import time drags in the router package and its global config parsing, so the startup-state seam must resolve that dependency lazily instead of at import time.
+- Decision:
+  - Introduce `lightrag/api/app_startup_state.py` with `AppStartupState` plus `build_app_startup_state(...)` as the authoritative helper for startup-only frontend/status/auth/doc-manager derivation.
+  - Rewire `lightrag/api/lightrag_server.py` to consume that helper instead of deriving those values inline.
+  - Keep `DocumentManager` resolution inside the helper's runtime path, with an overridable factory for focused tests, so importing the helper does not eagerly trigger router-package side effects.
+- Impact:
+  - `lightrag_server.py` sheds another self-contained startup-context responsibility and moves closer to app assembly plus runtime wiring only.
+  - The startup-state contract now has focused regression coverage in `tests/test_app_startup_state.py`, including API key precedence, the frontend-outdated version marker, and workspace-aware document-manager construction.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.

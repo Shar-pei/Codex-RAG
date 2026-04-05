@@ -17,7 +17,7 @@ from lightrag.api.app_cors import configure_cors
 from lightrag.api.app_factory_config import build_app_kwargs
 from lightrag.api.app_lifespan import create_app_lifespan
 from lightrag.api.app_runtime_args import normalize_runtime_args
-from lightrag.api.frontend_build_checker import check_frontend_build
+from lightrag.api.app_startup_state import build_app_startup_state
 from lightrag.api.llm_config_cache import LLMConfigCache
 from lightrag.api.query_validation_handlers import (
     create_query_validation_exception_handler,
@@ -41,8 +41,6 @@ from lightrag.constants import (
     DEFAULT_LLM_TIMEOUT,
     DEFAULT_EMBEDDING_TIMEOUT,
 )
-from lightrag.api.routers.document_routes import DocumentManager
-
 from lightrag.utils import logger, set_verbose_debug
 
 pm = get_pipmaster()
@@ -53,20 +51,11 @@ pm = get_pipmaster()
 load_dotenv(dotenv_path=".env", override=False)
 
 
-webui_title = os.getenv("WEBUI_TITLE")
-webui_description = os.getenv("WEBUI_DESCRIPTION")
-
 # Initialize config parser
 config = configparser.ConfigParser()
 config.read("config.ini")
 def create_app(args):
-    # Check frontend build first and get status
-    webui_assets_exist, is_frontend_outdated = check_frontend_build()
-
-    # Create unified API version display with warning symbol if frontend is outdated
-    api_version_display = (
-        f"{__api_version__}⚠️" if is_frontend_outdated else __api_version__
-    )
+    startup_state = build_app_startup_state(args, api_version=__api_version__)
 
     # Setup logging
     logger.setLevel(args.log_level)
@@ -77,13 +66,9 @@ def create_app(args):
 
     normalize_runtime_args(args)
 
-    # Check if API key is provided either through env var or args
-    api_key = os.getenv("LIGHTRAG_API_KEY") or args.key
-
-    # Initialize document manager with workspace support for data isolation
-    doc_manager = DocumentManager(args.input_dir, workspace=args.workspace)
-
-    app_kwargs = build_app_kwargs(api_key=api_key, api_version=__api_version__)
+    app_kwargs = build_app_kwargs(
+        api_key=startup_state.api_key, api_version=__api_version__
+    )
 
     # Create working directory if it doesn't exist
     Path(args.working_dir).mkdir(parents=True, exist_ok=True)
@@ -715,13 +700,13 @@ def create_app(args):
         app,
         RouteRegistryContext(
             rag=rag,
-            doc_manager=doc_manager,
-            api_key=api_key,
+            doc_manager=startup_state.doc_manager,
+            api_key=startup_state.api_key,
             args=args,
-            api_version_display=api_version_display,
-            webui_assets_exist=webui_assets_exist,
-            webui_title=webui_title,
-            webui_description=webui_description,
+            api_version_display=startup_state.api_version_display,
+            webui_assets_exist=startup_state.webui_assets_exist,
+            webui_title=startup_state.webui_title,
+            webui_description=startup_state.webui_description,
             rerank_enabled=rerank_model_func is not None,
             auth_handler=auth_handler,
         ),

@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after BB1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after BC1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1496,3 +1496,31 @@ tasks:
       - "Queued after BA1 root-cause analysis showed the next narrow self-contained seam in `lightrag_server.py` is the binding-option preprocessing cache class rather than another tiny inline value assignment."
       - "Completed by introducing lightrag/api/llm_config_cache.py as the authoritative home for `LLMConfigCache`, then rewiring lightrag_server.py to import that helper instead of defining the cache class inline."
       - "Focused regression coverage lives in tests/test_llm_config_cache.py."
+
+  - id: BC1
+    title: "Extract app startup state from lightrag_server.py"
+    priority: 58
+    status: completed
+    depends_on: [BB1]
+    area: "api"
+    problem_statement: "The FastAPI server entrypoint still derives startup-only app state inline, including frontend build status, API version display, API key resolution, and document-manager construction, so app assembly owns a mixed bundle of startup context plumbing."
+    root_cause_hypothesis: "Previous extractions targeted self-contained helper blocks first, but the startup-state values stayed in `create_app()` because they were short and shared only inside the route-registry context assembly, so the startup context contract never became its own helper seam."
+    definition_of_done:
+      - "A dedicated helper module owns startup-state derivation for frontend build status, API version display, API key resolution, and document-manager creation"
+      - "`lightrag_server.py` uses that helper instead of deriving those startup values inline"
+      - "The existing frontend-outdated version marker, API-key precedence, and document-manager workspace behavior remain unchanged"
+      - "Focused tests cover the extracted startup-state contract"
+    validation_commands:
+      - "python -m ruff check lightrag/api/app_startup_state.py lightrag/api/lightrag_server.py tests/test_app_startup_state.py"
+      - "python -m pytest tests/test_app_startup_state.py -q"
+    risk_level: "low"
+    expected_files:
+      - "lightrag/api/app_startup_state.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_app_startup_state.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BB1 root-cause analysis showed the next narrow self-contained seam in `create_app()` is the startup-state derivation block that feeds route-registry context and app metadata."
+      - "Completed by introducing lightrag/api/app_startup_state.py for frontend build status, API version display, API key resolution, and document-manager creation, then rewiring lightrag_server.py to consume that startup-state helper."
+      - "Focused regression coverage lives in tests/test_app_startup_state.py."
