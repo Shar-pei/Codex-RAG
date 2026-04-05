@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "J1 completed by extracting document operation request/response schemas out of document_routes.py, leaving the document API router with a narrower routing-and-pipeline responsibility"
+  current_focus: "K1 completed by extracting DocumentManager and file-path helpers out of document_routes.py, leaving the document API router with a narrower routing-and-pipeline responsibility"
 
 tasks:
   - id: A0
@@ -342,3 +342,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving document scan, insert, clear-cache, clear-documents, and delete request/response schemas into lightrag/api/routers/document_operation_models.py while keeping document_routes.py as the compatibility import surface."
+
+  - id: K1
+    title: "Extract DocumentManager and file-path helpers from document_routes.py"
+    priority: 14
+    status: completed
+    depends_on: [J1]
+    area: "api"
+    problem_statement: "The document API router still owns the DocumentManager abstraction plus file-path sanitization and queue-filename helpers alongside extraction pipelines and route handlers."
+    root_cause_hypothesis: "Document ingestion support code accumulated inside document_routes.py because the router became the default home for anything document-related, even when the logic did not depend on route state."
+    definition_of_done:
+      - "DocumentManager and its file-path helper functions live in a dedicated module"
+      - "document_routes.py preserves the existing import surface by reusing the extracted manager seam"
+      - "Focused tests cover workspace isolation, file scanning, path sanitization, and compatibility import paths"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/document_routes.py lightrag/api/routers/document_manager.py tests/test_document_manager.py"
+      - "python -m pytest tests/test_document_manager.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/document_routes.py"
+      - "lightrag/api/routers/document_manager.py"
+      - "tests/test_document_manager.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving DocumentManager, filename sanitization, deletion path validation, and enqueued-file naming into lightrag/api/routers/document_manager.py while keeping document_routes.py as the compatibility import surface."

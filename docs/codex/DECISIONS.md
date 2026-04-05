@@ -329,3 +329,19 @@
   - `document_routes.py` sheds another large schema block and keeps a tighter focus on document management and route execution.
   - Document API contract models are now split along two clearer seams: status/pagination and write/delete operations.
   - Focused tests now lock the extracted validator behavior and the compatibility re-export path.
+
+## DCR-022: K1 moves DocumentManager and file-path helpers behind a document-ingestion seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `J1`, `lightrag/api/routers/document_routes.py` still owned `DocumentManager`, upload filename sanitization, deletion path validation, and unique `__enqueued__` filename generation before the extraction pipeline helpers even began.
+  - That code does not depend on FastAPI route state; it only depends on filesystem paths, simple workspace rules, and logging.
+  - `lightrag/api/lightrag_server.py` already imports `DocumentManager` from `document_routes`, so the current import surface needed to stay stable while the seam moved.
+- Decision:
+  - Introduce `lightrag/api/routers/document_manager.py` for `DocumentManager`, `sanitize_filename(...)`, `validate_file_path_security(...)`, and `get_unique_filename_in_enqueued(...)`.
+  - Import those symbols back into `lightrag/api/routers/document_routes.py` so existing imports from `document_routes` continue to work.
+  - Leave file extraction and pipeline orchestration helpers in `document_routes.py` for now instead of widening the task into a broader ingestion-pipeline split.
+- Impact:
+  - `document_routes.py` now starts closer to route and pipeline behavior rather than path-safety and directory-management primitives.
+  - The document API now has a clearer ingestion-support seam that can be tested directly without importing the full routing module.
+  - Focused tests now lock workspace-scoped input directories, supported-file scanning, path sanitization, and the compatibility re-export path.
