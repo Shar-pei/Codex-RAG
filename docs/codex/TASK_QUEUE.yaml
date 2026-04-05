@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after BF1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after BG1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1608,3 +1608,31 @@ tasks:
       - "Queued after BE1 root-cause analysis showed the remaining provider-specific LLM seam in `lightrag_server.py` is the local Bedrock callable rather than the larger embedding or rerank setup."
       - "Completed by moving the Bedrock LLM callable behavior into lightrag/api/llm_model_factory.py and rewiring lightrag_server.py to stop defining or passing a local Bedrock wrapper."
       - "Focused regression coverage lives in tests/test_llm_model_factory.py."
+
+  - id: BG1
+    title: "Extract rerank model setup from lightrag_server.py"
+    priority: 62
+    status: completed
+    depends_on: [BF1]
+    area: "api"
+    problem_statement: "The FastAPI server entrypoint still configures rerank provider selection, default rerank args, and the rerank wrapper inline, so app construction owns provider-specific rerank wiring alongside runtime assembly."
+    root_cause_hypothesis: "Previous extractions targeted startup, LLM, and config seams first, but the rerank block stayed inside `create_app()` because it only had one caller and mutates `args` for default model/base_url resolution, so the rerank setup contract never became its own helper module."
+    definition_of_done:
+      - "A dedicated helper module owns rerank provider selection, default arg filling, and rerank wrapper construction"
+      - "`lightrag_server.py` uses that helper instead of defining the rerank setup inline"
+      - "The existing unsupported-binding error, default model/base_url resolution, and `extra_body` forwarding behavior remain unchanged"
+      - "Focused tests cover disabled, default-resolution, wrapper forwarding, and unsupported-binding behavior"
+    validation_commands:
+      - "python -m ruff check lightrag/api/rerank_model_factory.py lightrag/api/lightrag_server.py tests/test_rerank_model_factory.py"
+      - "python -m pytest tests/test_rerank_model_factory.py -q"
+    risk_level: "low"
+    expected_files:
+      - "lightrag/api/rerank_model_factory.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_rerank_model_factory.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BF1 root-cause analysis showed the next narrow self-contained seam in `create_app()` is the provider-specific rerank setup block rather than the larger embedding function factory."
+      - "Completed by introducing lightrag/api/rerank_model_factory.py for rerank provider selection, default arg filling, and wrapper construction, then rewiring lightrag_server.py to consume that helper instead of defining rerank setup inline."
+      - "Focused regression coverage lives in tests/test_rerank_model_factory.py."

@@ -24,6 +24,7 @@ from lightrag.api.llm_model_kwargs import build_llm_model_kwargs
 from lightrag.api.query_validation_handlers import (
     create_query_validation_exception_handler,
 )
+from lightrag.api.rerank_model_factory import build_rerank_model_func
 from lightrag.api.utils_api import display_splash_screen, check_env_file
 from .config import (
     global_args,
@@ -356,61 +357,7 @@ def create_app(args):
     else:
         logger.info("Embedding max_token_size: not set (90% token warning disabled)")
 
-    # Configure rerank function based on args.rerank_bindingparameter
-    rerank_model_func = None
-    if args.rerank_binding != "null":
-        from lightrag.rerank import cohere_rerank, jina_rerank, ali_rerank,local_modelscope_rerank
-
-        # Map rerank binding to corresponding function
-        rerank_functions = {
-            "cohere": cohere_rerank,
-            "jina": jina_rerank,
-            "aliyun": ali_rerank,
-            "modelscope": local_modelscope_rerank,
-        }
-
-        # Select the appropriate rerank function based on binding
-        selected_rerank_func = rerank_functions.get(args.rerank_binding)
-        if not selected_rerank_func:
-            logger.error(f"Unsupported rerank binding: {args.rerank_binding}")
-            raise ValueError(f"Unsupported rerank binding: {args.rerank_binding}")
-
-        # Get default values from selected_rerank_func if args values are None
-        if args.rerank_model is None or args.rerank_binding_host is None:
-            sig = inspect.signature(selected_rerank_func)
-
-            # Set default model if args.rerank_model is None
-            if args.rerank_model is None and "model" in sig.parameters:
-                default_model = sig.parameters["model"].default
-                if default_model != inspect.Parameter.empty:
-                    args.rerank_model = default_model
-
-            # Set default base_url if args.rerank_binding_host is None
-            if args.rerank_binding_host is None and "base_url" in sig.parameters:
-                default_base_url = sig.parameters["base_url"].default
-                if default_base_url != inspect.Parameter.empty:
-                    args.rerank_binding_host = default_base_url
-
-        async def server_rerank_func(
-            query: str, documents: list, top_n: int = None, extra_body: dict = None
-        ):
-            """Server rerank function with configuration from environment variables"""
-            return await selected_rerank_func(
-                query=query,
-                documents=documents,
-                top_n=top_n,
-                # api_key=args.rerank_binding_api_key,
-                # model=args.rerank_model,
-                # base_url=args.rerank_binding_host,
-                extra_body=extra_body,
-            )
-
-        rerank_model_func = server_rerank_func
-        logger.info(
-            f"Reranking is enabled: {args.rerank_model or 'default model'} using {args.rerank_binding} provider"
-        )
-    else:
-        logger.info("Reranking is disabled")
+    rerank_model_func = build_rerank_model_func(args)
 
     # Create ollama_server_infos from command line arguments
     from lightrag.api.config import OllamaServerInfos

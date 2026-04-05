@@ -1091,3 +1091,19 @@
   - `lightrag_server.py` sheds the final provider-specific LLM callable and moves closer to pure app assembly plus runtime wiring.
   - `llm_model_factory.py` is now the single authoritative seam for provider-specific LLM wrapper behavior and dispatch.
   - Focused regression coverage in `tests/test_llm_model_factory.py` now also locks the Bedrock callable behavior at the extracted seam, with no external API-path or payload-shape changes, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-070: BG1 moves rerank setup behind a rerank-model-factory helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BF1`, `lightrag/api/lightrag_server.py` still owned provider-specific rerank setup: rerank binding selection, default model/base_url filling, the wrapper closure, and the enabled/disabled logging branch.
+  - That block depended only on `args`, `inspect.signature(...)`, and the rerank provider functions, but it remained embedded in `create_app()`.
+  - Keeping it inline meant the server entrypoint still mixed one more provider-specific setup contract into app assembly after the LLM seams had already been extracted.
+- Decision:
+  - Introduce `lightrag/api/rerank_model_factory.py` as the authoritative home for rerank provider selection, default arg filling, and rerank wrapper construction.
+  - Rewire `lightrag/api/lightrag_server.py` to call `build_rerank_model_func(args)` instead of defining the rerank setup inline.
+  - Preserve the existing unsupported-binding error, default model/base_url resolution, and `extra_body` forwarding behavior without widening this run into broader rerank API changes.
+- Impact:
+  - `lightrag_server.py` sheds another provider-specific setup block and moves closer to app assembly plus runtime wiring only.
+  - The rerank setup contract now has focused regression coverage in `tests/test_rerank_model_factory.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
