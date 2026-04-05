@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "BU1 is now the highest-priority pending task: extract process entrypoint control flow from `lightrag_server.py` after BT1 moved single-process startup orchestration behind a helper"
+  current_focus: "BV1 is now the highest-priority pending task: extract logging configuration assembly from `lightrag_server.py` after BU1 moved process entrypoint control flow behind a helper"
 
 tasks:
   - id: A0
@@ -2004,7 +2004,7 @@ tasks:
   - id: BU1
     title: "Extract process entrypoint control flow from lightrag_server.py"
     priority: 76
-    status: pending
+    status: completed
     depends_on: [BT1]
     area: "api"
     problem_statement: "After `BT1`, the FastAPI server entrypoint still owns the remaining process-control flow inline in `main()`: config initialization, Gunicorn short-circuit detection, and delegation into the single-process startup helper."
@@ -2026,3 +2026,31 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Queued after BT1 root-cause analysis showed the remaining hotspot in `lightrag_server.py` is the top-level process-entrypoint control flow rather than the now-extracted single-process startup path."
+      - "Completed by introducing `lightrag/api/process_entrypoint.py` for config initialization, Gunicorn short-circuit branching, and single-process startup delegation, then rewiring `main()` to consume that helper."
+      - "Focused regression coverage lives in `tests/test_process_entrypoint.py`."
+
+  - id: BV1
+    title: "Extract logging configuration assembly from lightrag_server.py"
+    priority: 77
+    status: pending
+    depends_on: [BU1]
+    area: "api"
+    problem_statement: "After `BU1`, the FastAPI server entrypoint still owns the full `configure_logging()` assembly inline, including handler resets, log file path derivation, env-driven rotation settings, and `logging.config.dictConfig(...)` payload construction."
+    root_cause_hypothesis: "Previous tasks isolated app construction and process control flow, but the logging setup remained embedded in `lightrag_server.py` because its dictConfig payload and handler reset logic were never grouped behind a dedicated helper."
+    definition_of_done:
+      - "A dedicated helper module owns the logging configuration assembly used by `configure_logging()`"
+      - "`lightrag_server.py` uses that helper instead of assembling the logging configuration inline"
+      - "The existing log file path output, handler reset behavior, env-driven rotation settings, and logger/filter wiring remain unchanged"
+      - "Focused tests cover representative log path derivation and dictConfig payload forwarding"
+    validation_commands:
+      - "python -m ruff check lightrag/api/logging_setup.py lightrag/api/lightrag_server.py tests/test_logging_setup.py"
+      - "python -m pytest tests/test_logging_setup.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/logging_setup.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_logging_setup.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BU1 root-cause analysis showed the remaining hotspot in `lightrag_server.py` is the logging configuration assembly rather than the already-extracted process entrypoint control flow."

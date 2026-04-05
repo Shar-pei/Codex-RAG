@@ -9,6 +9,7 @@ import configparser
 from dotenv import load_dotenv
 from lightrag._pipmaster import get_pipmaster
 from lightrag.api.app_composition import build_app_composition
+from lightrag.api.process_entrypoint import run_process_entrypoint
 from lightrag.api.server_startup import run_server_startup
 from lightrag.api.utils_api import display_splash_screen, check_env_file
 from .config import (
@@ -150,27 +151,18 @@ def check_and_install_dependencies():
 
 
 def main():
-    # Explicitly initialize configuration for clarity
-    # (The proxy will auto-initialize anyway, but this makes intent clear)
     from .config import initialize_config
 
-    initialize_config()
-
-    # Check if running under Gunicorn
-    if "GUNICORN_CMD_ARGS" in os.environ:
-        # If started with Gunicorn, return directly as Gunicorn will call get_application
-        print("Running under Gunicorn - worker management handled by Gunicorn")
-        return
-
-    # Check .env file
-    run_server_startup(
-        args=global_args,
+    run_process_entrypoint(
+        global_args=global_args,
         app_builder=create_app,
         dependency_checker=check_and_install_dependencies,
         logging_configurer=configure_logging,
         uvicorn_mode_updater=update_uvicorn_mode_config,
         env_checker=check_env_file,
         splash_displayer=display_splash_screen,
+        initialize_config_func=initialize_config,
+        startup_runner=run_server_startup,
     )
 
 

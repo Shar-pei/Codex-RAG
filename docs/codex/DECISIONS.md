@@ -1315,3 +1315,19 @@
   - `lightrag_server.py` sheds the remaining single-process startup orchestration block and moves incrementally closer to a pure process-entrypoint module.
   - The extracted seam now has focused regression coverage for startup ordering, early env-check exit, and Uvicorn config forwarding in `tests/test_server_startup.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-084: BU1 moves process entrypoint control flow behind a helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BT1`, `lightrag/api/lightrag_server.py` no longer owned the single-process startup sequence itself, but `main()` still coordinated the remaining process-entrypoint flow inline.
+  - That remaining flow was now a narrow control contract: initialize config, detect Gunicorn worker mode, and otherwise delegate into the single-process startup helper.
+  - Keeping that branch in `lightrag_server.py` left the entrypoint module with one more orchestration seam even after app construction and startup had already been extracted.
+- Decision:
+  - Introduce `lightrag/api/process_entrypoint.py` with `run_process_entrypoint(...)` as the authoritative helper for config initialization, process-mode selection, and delegation into `run_server_startup(...)`.
+  - Rewire `lightrag/api/lightrag_server.py` so `main()` delegates to that helper instead of coordinating initialization and Gunicorn branching inline.
+  - Preserve the existing config initialization, Gunicorn short-circuit output, and single-process startup delegation without widening this run into the remaining logging configuration setup.
+- Impact:
+  - `lightrag_server.py` sheds another process-control seam and moves incrementally closer to a thin process entrypoint.
+  - The extracted seam now has focused regression coverage for Gunicorn branching and startup-helper forwarding in `tests/test_process_entrypoint.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
