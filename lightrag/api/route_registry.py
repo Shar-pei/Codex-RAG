@@ -10,10 +10,10 @@ from fastapi.openapi.docs import (
     get_swagger_ui_oauth2_redirect_html,
 )
 from fastapi.responses import RedirectResponse
-from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 
 from lightrag import LightRAG, __version__ as core_version
+from lightrag.api.app_auth_routes import create_auth_router
 from lightrag.api.routers.document_routes import (
     DocumentManager,
     create_document_routes,
@@ -111,6 +111,7 @@ def register_app_routes(app: FastAPI, context: RouteRegistryContext) -> None:
         ),
         prefix="/api",
     )
+    app.include_router(create_auth_router(auth_handler, _build_version_payload(context)))
 
     @app.get("/docs", include_in_schema=False)
     async def custom_swagger_ui_html():
@@ -133,61 +134,6 @@ def register_app_routes(app: FastAPI, context: RouteRegistryContext) -> None:
         if context.webui_assets_exist:
             return RedirectResponse(url="/webui")
         return RedirectResponse(url="/docs")
-
-    @app.get("/auth-status")
-    async def get_auth_status():
-        if not auth_handler.accounts:
-            guest_token = auth_handler.create_token(
-                username="guest",
-                role="guest",
-                metadata={"auth_mode": "disabled"},
-            )
-            return {
-                "auth_configured": False,
-                "access_token": guest_token,
-                "token_type": "bearer",
-                "auth_mode": "disabled",
-                "message": "Authentication is disabled. Using guest access.",
-                **_build_version_payload(context),
-            }
-
-        return {
-            "auth_configured": True,
-            "auth_mode": "enabled",
-            **_build_version_payload(context),
-        }
-
-    @app.post("/login")
-    async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-        if not auth_handler.accounts:
-            guest_token = auth_handler.create_token(
-                username="guest",
-                role="guest",
-                metadata={"auth_mode": "disabled"},
-            )
-            return {
-                "access_token": guest_token,
-                "token_type": "bearer",
-                "auth_mode": "disabled",
-                "message": "Authentication is disabled. Using guest access.",
-                **_build_version_payload(context),
-            }
-
-        username = form_data.username
-        if auth_handler.accounts.get(username) != form_data.password:
-            raise HTTPException(status_code=401, detail="Incorrect credentials")
-
-        user_token = auth_handler.create_token(
-            username=username,
-            role="user",
-            metadata={"auth_mode": "enabled"},
-        )
-        return {
-            "access_token": user_token,
-            "token_type": "bearer",
-            "auth_mode": "enabled",
-            **_build_version_payload(context),
-        }
 
     @app.get(
         "/health",

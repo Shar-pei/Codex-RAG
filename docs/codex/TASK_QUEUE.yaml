@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after AP1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after AQ1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1155,3 +1155,32 @@ tasks:
       - "Queued after AO1 root-cause analysis showed the remaining structural issue in ollama_api.py is route composition still living inside a stateful wrapper class instead of an explicit APIRouter factory."
       - "Completed by introducing create_ollama_router(...) as the explicit APIRouter factory, rewiring route_registry.py to consume it directly, and keeping OllamaAPI as a thin compatibility wrapper that still exposes `.router`."
       - "Focused regression coverage lives in tests/test_ollama_api_router_factory.py, with route_registry and route-error tests updated to preserve the existing compatibility surface."
+
+  - id: AQ1
+    title: "Extract auth status and login routes from route_registry.py"
+    priority: 46
+    status: completed
+    depends_on: [AP1]
+    area: "api"
+    problem_statement: "The app route registry still defines the root `/auth-status` and `/login` endpoints inline, so app composition owns auth response shaping and duplicates the guest-mode response payload structure."
+    root_cause_hypothesis: "D1 separated router-family inclusion from app startup, but the root auth endpoints remained in `route_registry.py` because they depend on the resolved auth handler and version payload, so the auth route seam never became its own explicit router factory."
+    definition_of_done:
+      - "A dedicated router factory owns the `/auth-status` and `/login` route logic"
+      - "`route_registry.py` includes that auth router instead of defining the auth endpoints inline"
+      - "Guest-mode payload shaping is centralized instead of duplicated across the two auth endpoints"
+      - "Focused tests cover the auth router contract plus preserved route-registry behavior"
+    validation_commands:
+      - "python -m ruff check lightrag/api/app_auth_routes.py lightrag/api/route_registry.py tests/test_app_auth_routes.py tests/test_route_registry.py"
+      - "python -m pytest tests/test_app_auth_routes.py tests/test_route_registry.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/app_auth_routes.py"
+      - "lightrag/api/route_registry.py"
+      - "tests/test_app_auth_routes.py"
+      - "tests/test_route_registry.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after AP1 root-cause analysis showed the next narrow route-registry seam is the inline auth-status/login pair and their duplicated guest-mode payload shaping."
+      - "Completed by introducing create_auth_router(...) in lightrag/api/app_auth_routes.py, rewiring route_registry.py to include that router, and centralizing the shared guest-mode response payload builder."
+      - "Focused regression coverage lives in tests/test_app_auth_routes.py, with tests/test_route_registry.py preserving the existing app-level behavior."

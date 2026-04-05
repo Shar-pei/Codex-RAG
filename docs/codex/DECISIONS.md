@@ -835,3 +835,19 @@
   - Ollama route composition now uses an explicit factory seam instead of instance-local route registration.
   - Route-registry assembly depends directly on the router contract it needs, while older imports that instantiate `OllamaAPI` continue to work unchanged.
   - Focused tests now lock both fresh-router behavior and the preserved compatibility wrapper without changing external API paths or payload shapes, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-054: AQ1 moves root auth routes behind an auth-router factory
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AP1`, `lightrag/api/route_registry.py` still defined the root `/auth-status` and `/login` endpoints inline even though its main responsibility is app composition.
+  - Those two endpoints depended on the resolved auth handler and version payload, but they also duplicated the guest-mode response payload structure.
+  - Keeping them inline meant route registry still owned both auth route behavior and auth payload shaping instead of delegating to a dedicated router seam.
+- Decision:
+  - Introduce `lightrag/api/app_auth_routes.py` with `create_auth_router(...)` as the explicit root auth-router factory.
+  - Rewire `lightrag/api/route_registry.py` to include that auth router instead of defining the two auth endpoints inline.
+  - Centralize the shared guest-mode response payload builder inside the extracted auth router module instead of duplicating that structure across both endpoints.
+- Impact:
+  - Route registry moves closer to a pure app-composition module.
+  - The root auth endpoints now have one authoritative home for guest-mode payload shaping and enabled-mode credential handling.
+  - Focused tests now lock both the auth-router contract and the preserved app-level behavior without changing external API paths or response shapes, so `docs/codex/CONTRACTS.md` did not require an update for this task.
