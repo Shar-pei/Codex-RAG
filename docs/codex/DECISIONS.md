@@ -313,3 +313,19 @@
   - `document_routes.py` now has a clearer boundary between API schemas and routing/pipeline orchestration.
   - Follow-on document API cleanup can extract additional seams incrementally rather than editing one monolithic file each time.
   - Focused tests now protect the extracted schema module and the compatibility re-export path.
+
+## DCR-021: J1 moves document write/delete schemas behind a second API-model seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `I1`, `lightrag/api/routers/document_routes.py` still opened with a second block of request/response models for scan, insert, clear, and delete operations before the `DocumentManager` implementation began.
+  - Those models (`ScanResponse`, `ReprocessResponse`, `CancelPipelineResponse`, `InsertTextRequest`, `InsertTextsRequest`, `InsertResponse`, `ClearDocumentsResponse`, `ClearCacheRequest`, `ClearCacheResponse`, `DeleteDocRequest`, `DeleteEntityRequest`, `DeleteRelationRequest`) depend only on Pydantic field validation plus simple string/list normalization.
+  - Keeping them inline would leave the router hotspot responsible for two separate API-model seams even after the status/pagination extraction.
+- Decision:
+  - Introduce `lightrag/api/routers/document_operation_models.py` for the document write/delete request and response schemas.
+  - Import those schemas back into `lightrag/api/routers/document_routes.py` so existing imports from `document_routes` remain stable.
+  - Keep `DocumentManager`, file sanitization, and route handlers in `document_routes.py` for now instead of widening the task into behavior changes.
+- Impact:
+  - `document_routes.py` sheds another large schema block and keeps a tighter focus on document management and route execution.
+  - Document API contract models are now split along two clearer seams: status/pagination and write/delete operations.
+  - Focused tests now lock the extracted validator behavior and the compatibility re-export path.

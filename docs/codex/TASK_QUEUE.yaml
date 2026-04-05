@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "I1 completed by extracting document status and pagination schemas out of document_routes.py, leaving the document API router with a narrower routing-and-pipeline responsibility"
+  current_focus: "J1 completed by extracting document operation request/response schemas out of document_routes.py, leaving the document API router with a narrower routing-and-pipeline responsibility"
 
 tasks:
   - id: A0
@@ -317,3 +317,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving document status, track-status, pagination, and pipeline-status schemas into lightrag/api/routers/document_status_models.py while keeping document_routes.py as the compatibility import surface."
+
+  - id: J1
+    title: "Extract document operation schemas from document_routes.py"
+    priority: 13
+    status: completed
+    depends_on: [I1]
+    area: "api"
+    problem_statement: "The document API router still mixes document write/delete request and response schemas with document management, parsing, background pipeline, and route handlers in one oversized module."
+    root_cause_hypothesis: "After status models were extracted, the remaining write/delete schemas still lived directly inside document_routes.py because document API contracts had accumulated around the router instead of converging on dedicated model seams."
+    definition_of_done:
+      - "Document write/delete request and response schemas live in a dedicated module"
+      - "document_routes.py preserves the existing import surface by reusing the extracted schemas"
+      - "Focused tests cover the extracted schema seam, validators, and compatibility import path"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/document_routes.py lightrag/api/routers/document_operation_models.py tests/test_document_operation_models.py"
+      - "python -m pytest tests/test_document_operation_models.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/document_routes.py"
+      - "lightrag/api/routers/document_operation_models.py"
+      - "tests/test_document_operation_models.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving document scan, insert, clear-cache, clear-documents, and delete request/response schemas into lightrag/api/routers/document_operation_models.py while keeping document_routes.py as the compatibility import surface."
