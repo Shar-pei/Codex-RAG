@@ -741,3 +741,19 @@
   - `ollama_api.py` sheds one full runtime endpoint path and moves closer to a chat-focused router module.
   - Ollama generate behavior now has focused regression coverage for non-stream fallback text and string-based streaming payload assembly without importing the full router runtime.
   - A follow-on task can target `/chat` execution helpers or a shared streaming abstraction separately from the extracted generate seam.
+
+## DCR-048: AK1 moves the Ollama chat flow behind a chat-handler seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AJ1`, the remaining runtime bulk in `lightrag/api/routers/ollama_api.py` was the `/chat` endpoint.
+  - That path owned message validation, conversation-history normalization, query-mode parsing, `QueryParam` construction, non-stream fallback shaping, NDJSON streaming assembly, and stream-error conversion.
+  - Those behaviors depend on the extracted Ollama request helpers and LightRAG query execution, not on route registration.
+- Decision:
+  - Introduce `lightrag/api/routers/ollama_chat_handlers.py` for the `/chat` execution path and streaming payload iterator.
+  - Reuse and re-export those helpers from `lightrag/api/routers/ollama_api.py` so existing imports remain stable.
+  - Preserve the current bypass and OpenWebUI-direct-LLM branching rules instead of widening this run into a generate/chat unification.
+- Impact:
+  - `ollama_api.py` sheds its remaining large runtime endpoint block and moves closer to a route-registration shell.
+  - Ollama chat behavior now has focused regression coverage for request validation, non-stream fallback text, string-based streaming payload assembly, and stream-error normalization without importing the full router runtime.
+  - A follow-on task can target any remaining router-shape cleanup without carrying the full `/chat` execution logic inline.

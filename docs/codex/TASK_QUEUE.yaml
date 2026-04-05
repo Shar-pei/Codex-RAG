@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "AJ1 completed by extracting Ollama generate handlers out of ollama_api.py, reducing the largest active API router's mixed generate-and-chat runtime responsibility"
+  current_focus: "AL1 pending after AK1: preserve HTTPException status codes in Ollama /generate and /chat route wrappers instead of rewrapping client errors as 500s"
 
 tasks:
   - id: A0
@@ -993,3 +993,52 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving the /generate execution and streaming payload assembly into lightrag/api/routers/ollama_generate_handlers.py while keeping ollama_api.py as the compatibility import surface."
+
+  - id: AK1
+    title: "Extract Ollama chat handlers from ollama_api.py"
+    priority: 40
+    status: completed
+    depends_on: [AJ1]
+    area: "api"
+    problem_statement: "The Ollama-compatible API module still owns the entire /chat execution path, including query-mode parsing, conversation-history adaptation, non-stream fallback shaping, and NDJSON streaming assembly, alongside route registration."
+    root_cause_hypothesis: "Chat handling stayed inline in ollama_api.py because it shared helper dependencies with /generate, even though the /chat runtime depends on request parsing, QueryParam construction, and response shaping rather than router setup."
+    definition_of_done:
+      - "The /chat execution path lives in a dedicated helper module"
+      - "ollama_api.py preserves the chat helper import surface through compatibility re-exports"
+      - "Focused tests cover helper re-exports, non-stream fallback behavior, streaming string-response assembly, and stream-error normalization"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/ollama_api.py lightrag/api/routers/ollama_chat_handlers.py tests/test_ollama_chat_handlers.py"
+      - "python -m pytest tests/test_ollama_chat_handlers.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/ollama_api.py"
+      - "lightrag/api/routers/ollama_chat_handlers.py"
+      - "tests/test_ollama_chat_handlers.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving the /chat execution path and streaming payload assembly into lightrag/api/routers/ollama_chat_handlers.py while keeping ollama_api.py as the compatibility import surface."
+
+  - id: AL1
+    title: "Preserve HTTPException status codes in Ollama route wrappers"
+    priority: 41
+    status: pending
+    depends_on: [AK1]
+    area: "api"
+    problem_statement: "The Ollama /generate and /chat route wrappers currently catch FastAPI HTTPException instances and rewrap them as 500 responses, which turns client validation failures into server errors."
+    root_cause_hypothesis: "The router-level logging wrapper uses a broad `except Exception` block around request parsing and helper execution, so framework-intended HTTP status codes never escape unchanged."
+    definition_of_done:
+      - "Ollama route wrappers re-raise HTTPException without converting it into a 500 response"
+      - "Unexpected exceptions still log and map to 500 responses"
+      - "Focused tests cover passthrough of client-facing HTTPException status codes"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/ollama_api.py tests/test_ollama_route_error_passthrough.py"
+      - "python -m pytest tests/test_ollama_route_error_passthrough.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/ollama_api.py"
+      - "tests/test_ollama_route_error_passthrough.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued from AK1 follow-up analysis after the /chat extraction exposed that route-level logging wrappers still swallow HTTPException status codes."
