@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from lightrag._pipmaster import get_pipmaster
+from lightrag.api.frontend_build_checker import check_frontend_build
 from lightrag.api.utils_api import display_splash_screen, check_env_file
 from .config import (
     global_args,
@@ -131,137 +132,6 @@ class LLMConfigCache:
                     "GeminiEmbeddingOptions not available, using default configuration"
                 )
                 self.gemini_embedding_options = {}
-
-
-def check_frontend_build():
-    """Check if frontend is built and optionally check if source is up-to-date
-
-    Returns:
-        tuple: (assets_exist: bool, is_outdated: bool)
-            - assets_exist: True if WebUI build files exist
-            - is_outdated: True if source is newer than build (only in dev environment)
-    """
-    webui_dir = Path(__file__).parent / "webui"
-    index_html = webui_dir / "index.html"
-
-    # 1. Check if build files exist
-    if not index_html.exists():
-        ASCIIColors.yellow("\n" + "=" * 80)
-        ASCIIColors.yellow("WARNING: Frontend Not Built")
-        ASCIIColors.yellow("=" * 80)
-        ASCIIColors.yellow("The WebUI frontend has not been built yet.")
-        ASCIIColors.yellow("The API server will start without the WebUI interface.")
-        ASCIIColors.yellow(
-            "\nTo enable WebUI, build the frontend using these commands:\n"
-        )
-        ASCIIColors.cyan("    cd lightrag_webui")
-        ASCIIColors.cyan("    bun install --frozen-lockfile")
-        ASCIIColors.cyan("    bun run build")
-        ASCIIColors.cyan("    cd ..")
-        ASCIIColors.yellow("\nThen restart the service.\n")
-        ASCIIColors.cyan(
-            "Note: Make sure you have Bun installed. Visit https://bun.sh for installation."
-        )
-        ASCIIColors.yellow("=" * 80 + "\n")
-        return (False, False)  # Assets don't exist, not outdated
-
-    # 2. Check if this is a development environment (source directory exists)
-    try:
-        source_dir = Path(__file__).parent.parent.parent / "lightrag_webui"
-        src_dir = source_dir / "src"
-
-        # Determine if this is a development environment: source directory exists and contains src directory
-        if not source_dir.exists() or not src_dir.exists():
-            # Production environment, skip source code check
-            logger.debug(
-                "Production environment detected, skipping source freshness check"
-            )
-            return (True, False)  # Assets exist, not outdated (prod environment)
-
-        # Development environment, perform source code timestamp check
-        logger.debug("Development environment detected, checking source freshness")
-
-        # Source code file extensions (files to check)
-        source_extensions = {
-            ".ts",
-            ".tsx",
-            ".js",
-            ".jsx",
-            ".mjs",
-            ".cjs",  # TypeScript/JavaScript
-            ".css",
-            ".scss",
-            ".sass",
-            ".less",  # Style files
-            ".json",
-            ".jsonc",  # Configuration/data files
-            ".html",
-            ".htm",  # Template files
-            ".md",
-            ".mdx",  # Markdown
-        }
-
-        # Key configuration files (in lightrag_webui root directory)
-        key_files = [
-            source_dir / "package.json",
-            source_dir / "bun.lock",
-            source_dir / "vite.config.ts",
-            source_dir / "tsconfig.json",
-            source_dir / "tailraid.config.js",
-            source_dir / "index.html",
-        ]
-
-        # Get the latest modification time of source code
-        latest_source_time = 0
-
-        # Check source code files in src directory
-        for file_path in src_dir.rglob("*"):
-            if file_path.is_file():
-                # Only check source code files, ignore temporary files and logs
-                if file_path.suffix.lower() in source_extensions:
-                    mtime = file_path.stat().st_mtime
-                    latest_source_time = max(latest_source_time, mtime)
-
-        # Check key configuration files
-        for key_file in key_files:
-            if key_file.exists():
-                mtime = key_file.stat().st_mtime
-                latest_source_time = max(latest_source_time, mtime)
-
-        # Get build time
-        build_time = index_html.stat().st_mtime
-
-        # Compare timestamps (5 second tolerance to avoid file system time precision issues)
-        if latest_source_time > build_time + 5:
-            ASCIIColors.yellow("\n" + "=" * 80)
-            ASCIIColors.yellow("WARNING: Frontend Source Code Has Been Updated")
-            ASCIIColors.yellow("=" * 80)
-            ASCIIColors.yellow(
-                "The frontend source code is newer than the current build."
-            )
-            ASCIIColors.yellow(
-                "This might happen after 'git pull' or manual code changes.\n"
-            )
-            ASCIIColors.cyan(
-                "Recommended: Rebuild the frontend to use the latest changes:"
-            )
-            ASCIIColors.cyan("    cd lightrag_webui")
-            ASCIIColors.cyan("    bun install --frozen-lockfile")
-            ASCIIColors.cyan("    bun run build")
-            ASCIIColors.cyan("    cd ..")
-            ASCIIColors.yellow("\nThe server will continue with the current build.")
-            ASCIIColors.yellow("=" * 80 + "\n")
-            return (True, True)  # Assets exist, outdated
-        else:
-            logger.info("Frontend build is up-to-date")
-            return (True, False)  # Assets exist, up-to-date
-
-    except Exception as e:
-        # If check fails, log warning but don't affect startup
-        logger.warning(f"Failed to check frontend source freshness: {e}")
-        return (True, False)  # Assume assets exist and up-to-date on error
-
-
 def create_app(args):
     # Check frontend build first and get status
     webui_assets_exist, is_frontend_outdated = check_frontend_build()

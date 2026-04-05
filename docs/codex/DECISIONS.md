@@ -915,3 +915,19 @@
   - Route registry moves closer to a pure app-composition layer.
   - The app assembly support contract now has one authoritative home instead of being embedded in the registry module.
   - Focused tests now lock the extracted helper behavior plus the preserved compatibility export without changing external API paths or payload shapes, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-059: AV1 moves frontend build freshness checks behind a startup helper seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AU1`, the next narrow self-contained hotspot in `lightrag/api/lightrag_server.py` was `check_frontend_build()`.
+  - That helper is startup-only logic: it checks whether the built WebUI assets exist and whether local `lightrag_webui` source files are newer than the current build.
+  - Keeping it inline meant the server entrypoint still owned frontend asset diagnostics alongside the much larger app factory and runtime binding setup.
+- Decision:
+  - Introduce `lightrag/api/frontend_build_checker.py` as the authoritative home for the WebUI build existence and freshness probe.
+  - Rewire `lightrag/api/lightrag_server.py` to import `check_frontend_build` from that helper module instead of defining it inline.
+  - Preserve the `check_frontend_build` compatibility surface from `lightrag_server.py` by importing the extracted helper under the same name.
+- Impact:
+  - `lightrag_server.py` sheds one self-contained startup diagnostic block and moves closer to a pure app-construction module.
+  - The frontend build probe now has focused regression coverage for missing-build, up-to-date, and outdated-source states without importing the full server entrypoint flow.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.

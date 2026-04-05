@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after AU1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after AV1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1300,3 +1300,31 @@ tasks:
       - "Queued after AT1 root-cause analysis showed the remaining route-registry responsibility is the support contract for assembly context and derived auth/version helpers, not route logic."
       - "Completed by introducing lightrag/api/app_route_context.py for RouteRegistryContext plus the version/auth helper contract, rewiring route_registry.py and lightrag_server.py to use it, and preserving the route_registry compatibility export."
       - "Focused regression coverage lives in tests/test_app_route_context.py, with tests/test_route_registry.py continuing to exercise the registry assembly seam."
+
+  - id: AV1
+    title: "Extract the frontend build checker from lightrag_server.py"
+    priority: 51
+    status: completed
+    depends_on: [AU1]
+    area: "api"
+    problem_statement: "The FastAPI server entrypoint still owns the WebUI build existence/freshness probe, so app startup mixes frontend asset diagnostics with server construction."
+    root_cause_hypothesis: "Earlier API cleanup focused on route composition and support contracts first, but `check_frontend_build()` stayed inside `lightrag_server.py` because it was a startup-only helper, so the frontend diagnostic seam never became its own module."
+    definition_of_done:
+      - "A dedicated helper module owns the frontend build existence and freshness checks"
+      - "`lightrag_server.py` uses that helper instead of defining the checker inline"
+      - "The existing `check_frontend_build` compatibility surface remains available from `lightrag_server.py`"
+      - "Focused tests cover missing-build, up-to-date, and outdated-source behaviors at the extracted seam"
+    validation_commands:
+      - "python -m ruff check lightrag/api/frontend_build_checker.py lightrag/api/lightrag_server.py tests/test_frontend_build_checker.py"
+      - "python -m pytest tests/test_frontend_build_checker.py -q"
+    risk_level: "low"
+    expected_files:
+      - "lightrag/api/frontend_build_checker.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_frontend_build_checker.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after AU1 root-cause analysis showed the next narrow self-contained seam in lightrag_server.py is the frontend build/freshness probe rather than the larger model-binding setup."
+      - "Completed by introducing lightrag/api/frontend_build_checker.py for the WebUI build existence/freshness probe, rewiring lightrag_server.py to import it, and preserving the `check_frontend_build` compatibility surface from the server module."
+      - "Focused regression coverage lives in tests/test_frontend_build_checker.py."
