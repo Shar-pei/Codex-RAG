@@ -230,3 +230,7 @@
     - `Test-NetConnection github.com -Port 22` -> `TcpTestSucceeded : True`
     - `ssh -i ~/.ssh/id_rsa -o IdentitiesOnly=yes -T git@github.com` -> `Permission denied (publickey)`
   - The local machine can reach GitHub over SSH, but the existing `~/.ssh/id_rsa` key is not authorized for the `Shar-pei` account, so there is still no viable push path from this environment.
+  - The repo remote has now been switched from HTTPS to SSH:
+    - `remote.origin.url` -> `git@github.com:Shar-pei/Codex-RAG.git`
+    - `git push --porcelain origin codex/lightrag` still fails immediately with `Permission denied (publickey)`
+  - The remaining unblock step is no longer transport selection; it is authorizing the existing public key on GitHub or loading a different authorized SSH identity.
