@@ -361,3 +361,19 @@
   - `document_routes.py` now starts closer to queue orchestration and route behavior instead of file-format parsing details.
   - Document content extraction rules now have a dedicated module and direct regression tests for their text-escaping behavior.
   - Follow-on cleanup can target enqueue/pipeline orchestration separately from file-format conversion logic.
+
+## DCR-024: M1 moves document indexing orchestration behind a pipeline seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `L1`, `lightrag/api/routers/document_routes.py` still contained the full indexing pipeline: file enqueueing, single-file indexing, sequential multi-file indexing, text indexing, and scan-trigger orchestration.
+  - Those helpers depend on `LightRAG`, document-manager helpers, content extraction helpers, and config, but they do not depend on FastAPI route state or response models.
+  - Keeping them inline would leave `document_routes.py` responsible for route handlers plus both indexing and deletion background workflows.
+- Decision:
+  - Introduce `lightrag/api/routers/document_indexing_pipeline.py` for `pipeline_enqueue_file(...)`, `pipeline_index_file(...)`, `pipeline_index_files(...)`, `pipeline_index_texts(...)`, and `run_scanning_process(...)`.
+  - Keep the temporary-file cleanup rule and the enqueue-time file-format branching inside that new module so indexing behavior is owned in one place.
+  - Import the extracted helpers back into `lightrag/api/routers/document_routes.py` so existing imports from `document_routes` remain stable.
+- Impact:
+  - `document_routes.py` now starts closer to route composition plus the remaining deletion workflow instead of the full document indexing lifecycle.
+  - The document indexing pipeline can now be tested directly for source-padding, ordering, and scan filtering without importing the full route module.
+  - Follow-on cleanup can target the remaining deletion background workflow as its own seam rather than continuing to edit one monolithic router.

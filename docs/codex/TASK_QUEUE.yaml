@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "L1 completed by extracting document content extraction helpers out of document_routes.py, leaving the document API router with a narrower routing-and-pipeline responsibility"
+  current_focus: "M1 completed by extracting document indexing pipeline helpers out of document_routes.py, leaving the document API router with a narrower routing-and-pipeline responsibility"
 
 tasks:
   - id: A0
@@ -392,3 +392,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving docling availability checks plus PDF, DOCX, PPTX, and XLSX content extraction helpers into lightrag/api/routers/document_content_extraction.py while keeping document_routes.py as the compatibility import surface."
+
+  - id: M1
+    title: "Extract document indexing pipeline helpers from document_routes.py"
+    priority: 16
+    status: completed
+    depends_on: [L1]
+    area: "api"
+    problem_statement: "The document API router still owns file enqueueing, sequential indexing, text indexing, and directory scan orchestration alongside route handlers and deletion flows."
+    root_cause_hypothesis: "Document indexing behavior kept growing inside document_routes.py because the background tasks were defined next to the endpoints that schedule them, even though the indexing pipeline does not depend on route state."
+    definition_of_done:
+      - "Document indexing pipeline helpers live in a dedicated module"
+      - "document_routes.py preserves the existing import surface by reusing the extracted pipeline seam"
+      - "Focused tests cover compatibility imports plus the key indexing sort and scan-filter behaviors"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/document_routes.py lightrag/api/routers/document_indexing_pipeline.py tests/test_document_indexing_pipeline.py"
+      - "python -m pytest tests/test_document_indexing_pipeline.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/document_routes.py"
+      - "lightrag/api/routers/document_indexing_pipeline.py"
+      - "tests/test_document_indexing_pipeline.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving file enqueueing, sequential indexing, text indexing, and scan orchestration helpers into lightrag/api/routers/document_indexing_pipeline.py while keeping document_routes.py as the compatibility import surface."
