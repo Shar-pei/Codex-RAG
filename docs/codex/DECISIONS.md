@@ -200,3 +200,19 @@
   - The documents, knowledge graph, retrieval, and API journeys are now defined once and rendered consistently by both the header and the content shell.
   - The Web UI keeps preserved tab content without parallel visibility state or duplicate provider ownership.
   - Future UI simplification can extend the shared registry instead of copying tab definitions across files.
+
+## DCR-015: Push of the validated D2 commit is currently timing out against origin
+- Date: 2026-04-05
+- Status: blocked
+- Context:
+  - `D2` was validated locally and committed as `3941041` on `codex/lightrag`.
+  - Two direct push attempts from `D:\MyCodeX\MyRAG\LightRAG` did not return a transport result before the local timeout window expired:
+    - `git push origin codex/lightrag` timed out after about 120 seconds
+    - `git push --porcelain origin codex/lightrag` timed out after about 300 seconds
+  - After those attempts, `git status --short --branch` still reports `codex/lightrag...origin/codex/lightrag [ahead 2]`.
+- Decision:
+  - Keep the validated `D2` commit in local history and stop without rewriting branch history.
+  - Resume by retrying `git push origin codex/lightrag` once outbound GitHub connectivity returns a definite success or failure instead of hanging.
+- Impact:
+  - The repository is left in a recoverable state with the D2 Web UI simplification committed locally but not confirmed on `origin`.
+  - The next run should treat push recovery as the immediate unblock step before taking the next queued task (`E1`).
