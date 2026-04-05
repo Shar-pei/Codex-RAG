@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "AA1 completed by turning create_graph_routes into a true router factory, eliminating duplicate graph route registration across repeated calls"
+  current_focus: "AB1 completed by extracting graph request models out of graph_routes.py, reducing the largest active router's mixed contract-and-route responsibility"
 
 tasks:
   - id: A0
@@ -768,3 +768,28 @@ tasks:
     notes:
       - "Completed by moving APIRouter construction inside create_graph_routes(...) so the graph router builder no longer mutates a shared module-level router across repeated calls."
       - "An empty module-level router remains only as a compatibility import surface for lightrag.api.routers.__init__."
+
+  - id: AB1
+    title: "Extract graph request models from graph_routes.py"
+    priority: 31
+    status: completed
+    depends_on: [AA1]
+    area: "api"
+    problem_statement: "The graph API router still mixes Pydantic request model declarations with route implementation in the largest active runtime router module."
+    root_cause_hypothesis: "Graph route contracts accumulated directly inside graph_routes.py because the router was the default home for both request schemas and endpoint handlers, even though the models do not depend on route state."
+    definition_of_done:
+      - "Graph request models live in a dedicated module"
+      - "graph_routes.py preserves the existing import surface through compatibility imports"
+      - "Focused tests cover model re-exports and key request-model defaults or structure"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/graph_routes.py lightrag/api/routers/graph_models.py tests/test_graph_models.py"
+      - "python -m pytest tests/test_graph_models.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/graph_routes.py"
+      - "lightrag/api/routers/graph_models.py"
+      - "tests/test_graph_models.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving graph entity/relation create-update and merge request models into lightrag/api/routers/graph_models.py while keeping graph_routes.py as the compatibility import surface."

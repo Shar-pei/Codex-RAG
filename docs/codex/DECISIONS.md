@@ -599,3 +599,18 @@
   - Repeated `create_graph_routes(...)` calls no longer accumulate duplicate graph endpoints.
   - The function name and behavior now match: it is a true router factory rather than a wrapper around a mutable singleton.
   - Focused regression tests now lock the fresh-router and no-duplicate-registration behavior for the graph router too.
+
+## DCR-039: AB1 moves graph request contracts behind a graph-model seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AA1`, `lightrag/api/routers/graph_routes.py` was still the largest active runtime router and still opened with five Pydantic request model declarations before any route handlers.
+  - `EntityUpdateRequest`, `RelationUpdateRequest`, `EntityMergeRequest`, `EntityCreateRequest`, and `RelationCreateRequest` describe the graph API contract, but they do not depend on route registration or graph execution state.
+  - Keeping those models inline continued to make the graph router responsible for both API contracts and endpoint behavior.
+- Decision:
+  - Introduce `lightrag/api/routers/graph_models.py` for the graph request models.
+  - Reuse and re-export those models from `lightrag/api/routers/graph_routes.py` so existing imports remain stable.
+- Impact:
+  - `graph_routes.py` sheds a self-contained contract block and moves closer to a route-focused module.
+  - Graph request model defaults and field structures now have focused regression coverage without importing the full router logic.
+  - A follow-on task can target route helper extraction or long-form graph route descriptions separately from the request-contract seam.

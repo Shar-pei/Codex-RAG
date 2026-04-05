@@ -2,88 +2,29 @@
 This module contains all graph-related routes for the LightRAG API.
 """
 
-from typing import Optional, Dict, Any
 import traceback
-from fastapi import APIRouter, Depends, Query, HTTPException
-from pydantic import BaseModel, Field
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from lightrag.api.routers.graph_models import (
+    EntityCreateRequest as _EntityCreateRequest,
+    EntityMergeRequest as _EntityMergeRequest,
+    EntityUpdateRequest as _EntityUpdateRequest,
+    RelationCreateRequest as _RelationCreateRequest,
+    RelationUpdateRequest as _RelationUpdateRequest,
+)
 
 from lightrag.utils import logger
 from ..utils_api import get_combined_auth_dependency
 
 router = APIRouter(tags=["graph"])
 
-
-class EntityUpdateRequest(BaseModel):
-    entity_name: str
-    updated_data: Dict[str, Any]
-    allow_rename: bool = False
-    allow_merge: bool = False
-
-
-class RelationUpdateRequest(BaseModel):
-    source_id: str
-    target_id: str
-    updated_data: Dict[str, Any]
-
-
-class EntityMergeRequest(BaseModel):
-    entities_to_change: list[str] = Field(
-        ...,
-        description="List of entity names to be merged and deleted. These are typically duplicate or misspelled entities.",
-        min_length=1,
-        examples=[["Elon Msk", "Ellon Musk"]],
-    )
-    entity_to_change_into: str = Field(
-        ...,
-        description="Target entity name that will receive all relationships from the source entities. This entity will be preserved.",
-        min_length=1,
-        examples=["Elon Musk"],
-    )
-
-
-class EntityCreateRequest(BaseModel):
-    entity_name: str = Field(
-        ...,
-        description="Unique name for the new entity",
-        min_length=1,
-        examples=["Tesla"],
-    )
-    entity_data: Dict[str, Any] = Field(
-        ...,
-        description="Dictionary containing entity properties. Common fields include 'description' and 'entity_type'.",
-        examples=[
-            {
-                "description": "Electric vehicle manufacturer",
-                "entity_type": "ORGANIZATION",
-            }
-        ],
-    )
-
-
-class RelationCreateRequest(BaseModel):
-    source_entity: str = Field(
-        ...,
-        description="Name of the source entity. This entity must already exist in the knowledge graph.",
-        min_length=1,
-        examples=["Elon Musk"],
-    )
-    target_entity: str = Field(
-        ...,
-        description="Name of the target entity. This entity must already exist in the knowledge graph.",
-        min_length=1,
-        examples=["Tesla"],
-    )
-    relation_data: Dict[str, Any] = Field(
-        ...,
-        description="Dictionary containing relationship properties. Common fields include 'description', 'keywords', and 'weight'.",
-        examples=[
-            {
-                "description": "Elon Musk is the CEO of Tesla",
-                "keywords": "CEO, founder",
-                "weight": 1.0,
-            }
-        ],
-    )
+EntityUpdateRequest = _EntityUpdateRequest
+RelationUpdateRequest = _RelationUpdateRequest
+EntityMergeRequest = _EntityMergeRequest
+EntityCreateRequest = _EntityCreateRequest
+RelationCreateRequest = _RelationCreateRequest
 
 
 def create_graph_routes(rag, api_key: Optional[str] = None):
