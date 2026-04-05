@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Y1 completed by extracting long-form query route descriptions out of query_routes.py, reducing the router's remaining static documentation bulk"
+  current_focus: "Z1 completed by turning create_query_routes into a true router factory, eliminating duplicate query route registration across repeated calls"
 
 tasks:
   - id: A0
@@ -718,3 +718,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving the /query, /query/stream, and /query/data long-form descriptions into lightrag/api/routers/query_route_descriptions.py while keeping query_routes.py as the compatibility import surface."
+
+  - id: Z1
+    title: "Make create_query_routes a true router factory"
+    priority: 29
+    status: completed
+    depends_on: [Y1]
+    area: "api"
+    problem_statement: "The query route builder still registers handlers onto a shared module-level APIRouter, so repeated create_query_routes(...) calls duplicate the same /query routes."
+    root_cause_hypothesis: "The module started with a singleton router for decorator convenience, and later wrapped route registration in a factory function without moving the APIRouter allocation inside that factory."
+    definition_of_done:
+      - "Each create_query_routes(...) call returns a fresh APIRouter instance"
+      - "Repeated factory calls do not accumulate duplicate /query route registrations"
+      - "Focused tests cover the fresh-router and no-duplicate-registration behavior"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/query_routes.py tests/test_query_router_factory.py"
+      - "python -m pytest tests/test_query_router_factory.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/query_routes.py"
+      - "tests/test_query_router_factory.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving APIRouter construction inside create_query_routes(...) so the query router builder no longer mutates a shared module-level router across repeated calls."
+      - "An empty module-level router remains only as a compatibility import surface for lightrag.api.routers.__init__."

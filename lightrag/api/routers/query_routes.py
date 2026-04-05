@@ -65,6 +65,7 @@ build_query_streaming_response = _build_query_streaming_response
 
 
 def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
+    router = APIRouter(tags=["query"])
     combined_auth = get_combined_auth_dependency(api_key)
 
     @router.post(

@@ -569,3 +569,18 @@
   - `query_routes.py` sheds its remaining static documentation bulk and moves closer to a route-wiring module.
   - Query route descriptions now have a dedicated home and focused regression coverage without requiring edits to runtime query logic.
   - A follow-on task can target route-factory extraction or other API routers instead of continuing to peel static text out of `query_routes.py`.
+
+## DCR-037: Z1 makes create_query_routes a real APIRouter factory
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After the query-router seam extractions, `lightrag/api/routers/query_routes.py` still kept a module-level `APIRouter` while also exposing `create_query_routes(...)` as if it were a pure factory.
+  - Root-cause checks showed the bug directly: the first call returned 3 routes, and the second call returned 6 routes because `/query`, `/query/stream`, and `/query/data` were registered twice onto the same shared router.
+  - `route_registry.register_app_routes(...)` currently calls `create_query_routes(...)` during app assembly, so the safe contract for that function is "return a fresh router" rather than "mutate a hidden singleton."
+- Decision:
+  - Move `APIRouter(tags=["query"])` construction inside `create_query_routes(...)`.
+  - Keep the extracted helper re-exports in `query_routes.py`, and retain an empty module-level `router` only for compatibility imports from `lightrag.api.routers.__init__`.
+- Impact:
+  - Repeated `create_query_routes(...)` calls no longer accumulate duplicate query endpoints.
+  - The function name and behavior now match: it is a true router factory rather than a wrapper around a mutable singleton.
+  - Focused regression tests now lock the fresh-router and no-duplicate-registration behavior so later refactors do not reintroduce this bug.
