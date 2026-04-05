@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "BS1 is now the highest-priority pending task: extract the remaining create_app orchestration from `lightrag_server.py` after BR1 moved FastAPI app shell assembly behind a helper"
+  current_focus: "BT1 is now the highest-priority pending task: extract single-process server startup orchestration from `lightrag_server.py` after BS1 moved create_app composition behind a helper"
 
 tasks:
   - id: A0
@@ -1948,7 +1948,7 @@ tasks:
   - id: BS1
     title: "Extract create_app orchestration plan from lightrag_server.py"
     priority: 74
-    status: pending
+    status: completed
     depends_on: [BR1]
     area: "api"
     problem_statement: "After `BR1`, the FastAPI server entrypoint still coordinates the full `create_app()` orchestration inline by deriving startup state, applying runtime logging state, assembling runtime dependencies, building runtime bootstrap state, and finally building the app shell."
@@ -1970,3 +1970,31 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Queued after BR1 root-cause analysis showed the remaining hotspot in `lightrag_server.py` is the top-level `create_app()` orchestration sequence rather than any one sub-helper."
+      - "Completed by introducing `lightrag/api/app_composition.py` for startup-state, runtime, and app-shell helper sequencing, and rewiring `lightrag_server.py` so `create_app()` delegates to that composition helper."
+      - "Focused regression coverage lives in `tests/test_app_composition.py`."
+
+  - id: BT1
+    title: "Extract single-process server startup orchestration from lightrag_server.py"
+    priority: 75
+    status: pending
+    depends_on: [BS1]
+    area: "api"
+    problem_statement: "After `BS1`, the FastAPI server entrypoint still coordinates the full single-process startup path inline in `main()`: config initialization, env checks, dependency bootstrap, logging/splash setup, app creation, Uvicorn config assembly, and `uvicorn.run(...)`."
+    root_cause_hypothesis: "Previous tasks isolated app construction, but `lightrag_server.py` still owns one large startup orchestration sequence because the single-process server boot flow has never been grouped behind a dedicated helper."
+    definition_of_done:
+      - "A dedicated helper module owns the single-process server startup orchestration used by `main()`"
+      - "`lightrag_server.py` uses that helper instead of sequencing startup preparation and `uvicorn.run(...)` inline"
+      - "The existing Gunicorn short-circuit, env checks, dependency bootstrap, SSL config forwarding, and single-process Uvicorn behavior remain unchanged"
+      - "Focused tests cover representative startup ordering and Uvicorn config forwarding"
+    validation_commands:
+      - "python -m ruff check lightrag/api/server_startup.py lightrag/api/lightrag_server.py tests/test_server_startup.py"
+      - "python -m pytest tests/test_server_startup.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/server_startup.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_server_startup.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BS1 root-cause analysis showed the remaining hotspot in `lightrag_server.py` is the single-process startup path in `main()` rather than the now-extracted app-construction flow."

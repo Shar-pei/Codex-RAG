@@ -10,11 +10,7 @@ import uvicorn
 import configparser
 from dotenv import load_dotenv
 from lightrag._pipmaster import get_pipmaster
-from lightrag.api.app_factory_config import build_app_kwargs
-from lightrag.api.app_shell_factory import build_app_shell
-from lightrag.api.app_startup_state import build_app_startup_state
-from lightrag.api.rag_app_runtime import build_rag_app_runtime
-from lightrag.api.rag_runtime_dependencies import build_rag_runtime_dependencies
+from lightrag.api.app_composition import build_app_composition
 from lightrag.api.utils_api import display_splash_screen, check_env_file
 from .config import (
     global_args,
@@ -27,7 +23,7 @@ from lightrag.constants import (
     DEFAULT_LOG_BACKUP_COUNT,
     DEFAULT_LOG_FILENAME,
 )
-from lightrag.utils import logger, set_verbose_debug
+
 
 pm = get_pipmaster()
 
@@ -43,29 +39,11 @@ config.read("config.ini")
 
 
 def create_app(args):
-    startup_state = build_app_startup_state(args, api_version=__api_version__)
-
-    # Setup logging
-    logger.setLevel(args.log_level)
-    set_verbose_debug(args.verbose)
-
-    runtime_dependencies = build_rag_runtime_dependencies(args)
-
-    app_kwargs = build_app_kwargs(
-        api_key=startup_state.api_key, api_version=__api_version__
-    )
-
-    app_runtime = build_rag_app_runtime(args, runtime_dependencies)
-
-    app = build_app_shell(
-        app_runtime=app_runtime,
-        startup_state=startup_state,
+    return build_app_composition(
         args=args,
-        app_kwargs=app_kwargs,
+        api_version=__api_version__,
         cors_origins=global_args.cors_origins,
     )
-
-    return app
 
 
 def get_application(args=None):

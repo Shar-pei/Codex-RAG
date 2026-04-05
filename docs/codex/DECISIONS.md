@@ -1283,3 +1283,19 @@
   - `lightrag_server.py` sheds the remaining app-shell assembly block and moves incrementally closer to pure composition orchestration.
   - The extracted seam now has focused regression coverage for app-shell wiring and route-context forwarding in `tests/test_app_shell_factory.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-082: BS1 moves create_app orchestration behind a composition helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BR1`, `lightrag/api/lightrag_server.py` no longer owned any individual app-construction sub-step, but it still coordinated the full `create_app()` pipeline inline.
+  - That remaining sequence was now entirely orchestration: derive startup state, apply runtime logging state, build runtime dependencies, bootstrap runtime state, then build the app shell.
+  - Keeping that sequence in `lightrag_server.py` left the entrypoint module responsible for high-level composition ordering even though every sub-step had already been extracted.
+- Decision:
+  - Introduce `lightrag/api/app_composition.py` with `build_app_composition(...)` as the authoritative helper for the top-level `create_app()` orchestration pipeline.
+  - Rewire `lightrag/api/lightrag_server.py` so `create_app()` delegates to that helper instead of sequencing the startup-state, runtime, and app-shell helpers inline.
+  - Preserve the existing logging-state application, helper ordering, and `create_app()` return behavior without widening this run into the separate single-process server startup path in `main()`.
+- Impact:
+  - `lightrag_server.py` sheds the remaining app-construction orchestration block and moves incrementally closer to a pure process entrypoint.
+  - The extracted seam now has focused regression coverage for helper ordering, logging-state application, and argument forwarding in `tests/test_app_composition.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
