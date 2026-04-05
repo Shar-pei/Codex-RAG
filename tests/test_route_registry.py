@@ -80,15 +80,11 @@ def _patch_route_builders(monkeypatch):
         lambda rag, api_key: _make_router("/graph", "/stub"),
     )
 
-    class DummyOllamaAPI:
-        def __init__(self, rag, top_k, api_key):
-            self.router = APIRouter()
-
-            @self.router.get("/version")
-            async def version():
-                return {"top_k": top_k}
-
-    monkeypatch.setattr(route_registry, "OllamaAPI", DummyOllamaAPI)
+    monkeypatch.setattr(
+        route_registry,
+        "create_ollama_router",
+        lambda rag, top_k, api_key: _make_router("", "/version"),
+    )
     monkeypatch.setattr(
         route_registry,
         "get_combined_auth_dependency",

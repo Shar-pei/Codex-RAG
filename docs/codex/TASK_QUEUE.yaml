@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after AO1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after AP1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1125,3 +1125,33 @@ tasks:
       - "Queued from AN1 follow-up analysis after the terminal payload seam was centralized but both iterators still duplicated their non-terminal chunk payload assembly."
       - "Completed by introducing shared non-terminal chunk payload builders in lightrag/api/routers/ollama_stream_payloads.py and reusing them from both the string-response and async-stream paths in the generate/chat iterators."
       - "Focused regression coverage lives in tests/test_ollama_stream_payloads.py."
+
+  - id: AP1
+    title: "Extract an explicit Ollama router factory from ollama_api.py"
+    priority: 45
+    status: completed
+    depends_on: [AO1]
+    area: "api"
+    problem_statement: "The Ollama-compatible router module still hides route registration inside the stateful `OllamaAPI.setup_routes()` method even though the actual request/runtime logic has already been extracted into dedicated helper modules."
+    root_cause_hypothesis: "Earlier Ollama refactors split runtime helpers first, but the module kept its original class wrapper, so route composition still depends on instance state and nested closures instead of an explicit router factory seam."
+    definition_of_done:
+      - "A dedicated helper returns a fresh Ollama APIRouter from explicit inputs"
+      - "`route_registry.py` uses the explicit Ollama router factory instead of depending on an `OllamaAPI(...).router` side effect"
+      - "The `OllamaAPI` compatibility surface remains available for existing imports"
+      - "Focused tests cover fresh-router behavior plus the preserved compatibility wrapper"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/ollama_api.py lightrag/api/route_registry.py tests/test_ollama_api_router_factory.py tests/test_route_registry.py tests/test_ollama_route_error_passthrough.py"
+      - "python -m pytest tests/test_ollama_api_router_factory.py tests/test_route_registry.py tests/test_ollama_route_error_passthrough.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/ollama_api.py"
+      - "lightrag/api/route_registry.py"
+      - "tests/test_ollama_api_router_factory.py"
+      - "tests/test_route_registry.py"
+      - "tests/test_ollama_route_error_passthrough.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after AO1 root-cause analysis showed the remaining structural issue in ollama_api.py is route composition still living inside a stateful wrapper class instead of an explicit APIRouter factory."
+      - "Completed by introducing create_ollama_router(...) as the explicit APIRouter factory, rewiring route_registry.py to consume it directly, and keeping OllamaAPI as a thin compatibility wrapper that still exposes `.router`."
+      - "Focused regression coverage lives in tests/test_ollama_api_router_factory.py, with route_registry and route-error tests updated to preserve the existing compatibility surface."

@@ -819,3 +819,19 @@
   - Ollama non-terminal stream behavior now has one authoritative seam for shared chunk metadata and `done=False` framing.
   - Focused tests now lock both the shared builder contract and iterator delegation at the touched seam.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-053: AP1 makes Ollama route composition an explicit router factory
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AO1`, the runtime-heavy logic had already been extracted from `lightrag/api/routers/ollama_api.py`, but route registration still lived inside `OllamaAPI.setup_routes()` as nested closures over instance state.
+  - Production assembly in `lightrag/api/route_registry.py` only needed the resulting router, not the `OllamaAPI` object itself.
+  - Keeping the registration logic behind a stateful wrapper made the route-composition seam less explicit than the document, query, and graph router factories.
+- Decision:
+  - Introduce `create_ollama_router(...)` in `lightrag/api/routers/ollama_api.py` as the explicit APIRouter factory for the Ollama-compatible endpoints.
+  - Rewire `lightrag/api/route_registry.py` to include the router returned by that factory directly.
+  - Preserve `OllamaAPI` as a thin compatibility wrapper that still exposes `.router` for existing imports and focused tests.
+- Impact:
+  - Ollama route composition now uses an explicit factory seam instead of instance-local route registration.
+  - Route-registry assembly depends directly on the router contract it needs, while older imports that instantiate `OllamaAPI` continue to work unchanged.
+  - Focused tests now lock both fresh-router behavior and the preserved compatibility wrapper without changing external API paths or payload shapes, so `docs/codex/CONTRACTS.md` did not require an update for this task.
