@@ -5,12 +5,11 @@ LightRAG FastAPI Server
 import os
 import logging
 import logging.config
-import sys
-import uvicorn
 import configparser
 from dotenv import load_dotenv
 from lightrag._pipmaster import get_pipmaster
 from lightrag.api.app_composition import build_app_composition
+from lightrag.api.server_startup import run_server_startup
 from lightrag.api.utils_api import display_splash_screen, check_env_file
 from .config import (
     global_args,
@@ -164,49 +163,15 @@ def main():
         return
 
     # Check .env file
-    if not check_env_file():
-        sys.exit(1)
-
-    # Check and install dependencies
-    check_and_install_dependencies()
-
-    from multiprocessing import freeze_support
-
-    freeze_support()
-
-    # Configure logging before parsing args
-    configure_logging()
-    update_uvicorn_mode_config()
-    display_splash_screen(global_args)
-
-    # Note: Signal handlers are NOT registered here because:
-    # - Uvicorn has built-in signal handling that properly calls lifespan shutdown
-    # - Custom signal handlers can interfere with uvicorn's graceful shutdown
-    # - Cleanup is handled by the lifespan context manager's finally block
-
-    # Create application instance directly instead of using factory function
-    app = create_app(global_args)
-
-    # Start Uvicorn in single process mode
-    uvicorn_config = {
-        "app": app,  # Pass application instance directly instead of string path
-        "host": global_args.host,
-        "port": global_args.port,
-        "log_config": None,  # Disable default config
-    }
-
-    if global_args.ssl:
-        uvicorn_config.update(
-            {
-                "ssl_certfile": global_args.ssl_certfile,
-                "ssl_keyfile": global_args.ssl_keyfile,
-            }
-        )
-
-    print(
-        f"Starting Uvicorn server in single-process mode on {global_args.host}:{global_args.port}"
+    run_server_startup(
+        args=global_args,
+        app_builder=create_app,
+        dependency_checker=check_and_install_dependencies,
+        logging_configurer=configure_logging,
+        uvicorn_mode_updater=update_uvicorn_mode_config,
+        env_checker=check_env_file,
+        splash_displayer=display_splash_screen,
     )
-    uvicorn.run(**uvicorn_config)
 
 
 if __name__ == "__main__":

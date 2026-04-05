@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "BT1 is now the highest-priority pending task: extract single-process server startup orchestration from `lightrag_server.py` after BS1 moved create_app composition behind a helper"
+  current_focus: "BU1 is now the highest-priority pending task: extract process entrypoint control flow from `lightrag_server.py` after BT1 moved single-process startup orchestration behind a helper"
 
 tasks:
   - id: A0
@@ -1976,7 +1976,7 @@ tasks:
   - id: BT1
     title: "Extract single-process server startup orchestration from lightrag_server.py"
     priority: 75
-    status: pending
+    status: completed
     depends_on: [BS1]
     area: "api"
     problem_statement: "After `BS1`, the FastAPI server entrypoint still coordinates the full single-process startup path inline in `main()`: config initialization, env checks, dependency bootstrap, logging/splash setup, app creation, Uvicorn config assembly, and `uvicorn.run(...)`."
@@ -1998,3 +1998,31 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Queued after BS1 root-cause analysis showed the remaining hotspot in `lightrag_server.py` is the single-process startup path in `main()` rather than the now-extracted app-construction flow."
+      - "Completed by introducing `lightrag/api/server_startup.py` for env checks, dependency bootstrap, logging/splash setup, app creation, Uvicorn config assembly, and `uvicorn.run(...)`, then rewiring `main()` to delegate to that helper."
+      - "Focused regression coverage lives in `tests/test_server_startup.py`."
+
+  - id: BU1
+    title: "Extract process entrypoint control flow from lightrag_server.py"
+    priority: 76
+    status: pending
+    depends_on: [BT1]
+    area: "api"
+    problem_statement: "After `BT1`, the FastAPI server entrypoint still owns the remaining process-control flow inline in `main()`: config initialization, Gunicorn short-circuit detection, and delegation into the single-process startup helper."
+    root_cause_hypothesis: "Previous tasks isolated app construction and single-process startup, but `lightrag_server.py` still coordinates the last process-entrypoint branch because initialization and process-mode selection were never grouped behind one helper."
+    definition_of_done:
+      - "A dedicated helper module owns the remaining process-entrypoint control flow used by `main()`"
+      - "`lightrag_server.py` uses that helper instead of inlining config initialization and process-mode branching"
+      - "The existing config initialization, Gunicorn short-circuit behavior, and single-process delegation remain unchanged"
+      - "Focused tests cover representative process-mode branching and helper-call forwarding"
+    validation_commands:
+      - "python -m ruff check lightrag/api/process_entrypoint.py lightrag/api/lightrag_server.py tests/test_process_entrypoint.py"
+      - "python -m pytest tests/test_process_entrypoint.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/process_entrypoint.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_process_entrypoint.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BT1 root-cause analysis showed the remaining hotspot in `lightrag_server.py` is the top-level process-entrypoint control flow rather than the now-extracted single-process startup path."

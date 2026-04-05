@@ -1299,3 +1299,19 @@
   - `lightrag_server.py` sheds the remaining app-construction orchestration block and moves incrementally closer to a pure process entrypoint.
   - The extracted seam now has focused regression coverage for helper ordering, logging-state application, and argument forwarding in `tests/test_app_composition.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-083: BT1 moves single-process startup orchestration behind a helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BS1`, `lightrag/api/lightrag_server.py` no longer owned app construction, but `main()` still coordinated the single-process startup path inline.
+  - That path was already a self-contained orchestration contract: env checks, dependency bootstrap, multiprocessing freeze support, logging and splash setup, app creation, Uvicorn config assembly, and `uvicorn.run(...)`.
+  - A focused test attempt exposed one more hidden coupling: importing `utils_api` eagerly for default startup helpers triggered auth/config parsing side effects, so the startup seam needed lazy default resolution for isolated tests.
+- Decision:
+  - Introduce `lightrag/api/server_startup.py` with `run_server_startup(...)` as the authoritative helper for the single-process startup path used by `main()`.
+  - Rewire `lightrag/api/lightrag_server.py` so `main()` delegates to that helper instead of sequencing the startup steps inline.
+  - Resolve the default env-check and splash-display helpers lazily inside `run_server_startup(...)` so importing the helper does not eagerly trigger config side effects during focused tests.
+- Impact:
+  - `lightrag_server.py` sheds the remaining single-process startup orchestration block and moves incrementally closer to a pure process-entrypoint module.
+  - The extracted seam now has focused regression coverage for startup ordering, early env-check exit, and Uvicorn config forwarding in `tests/test_server_startup.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
