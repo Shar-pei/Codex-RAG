@@ -35,7 +35,7 @@ from .config import (
 from lightrag.utils import get_env_value
 from lightrag import LightRAG
 from lightrag.api import __api_version__
-from lightrag.api.app_route_context import RouteRegistryContext
+from lightrag.api.app_route_context import build_route_registry_context
 from lightrag.api.route_registry import register_app_routes
 from lightrag.constants import (
     DEFAULT_LOG_MAX_BYTES,
@@ -157,21 +157,13 @@ def create_app(args):
 
     configure_cors(app, global_args.cors_origins)
 
-    from lightrag.api.auth import auth_handler
-
     register_app_routes(
         app,
-        RouteRegistryContext(
+        build_route_registry_context(
             rag=rag,
-            doc_manager=startup_state.doc_manager,
-            api_key=startup_state.api_key,
+            startup_state=startup_state,
             args=args,
-            api_version_display=startup_state.api_version_display,
-            webui_assets_exist=startup_state.webui_assets_exist,
-            webui_title=startup_state.webui_title,
-            webui_description=startup_state.webui_description,
             rerank_enabled=rerank_model_func is not None,
-            auth_handler=auth_handler,
         ),
     )
 

@@ -1155,3 +1155,19 @@
   - `lightrag_server.py` sheds another narrow embedding assembly branch and moves closer to pure app assembly plus runtime wiring.
   - The embedding-factory seam now includes focused regression coverage for max-token-size logging outcomes in `tests/test_embedding_model_factory.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-074: BK1 makes app_route_context authoritative for route-context assembly too
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BJ1`, `lightrag/api/lightrag_server.py` still built `RouteRegistryContext(...)` inline and lazily imported `auth_handler` just before route registration.
+  - The route-context contract already lived in `lightrag/api/app_route_context.py`, but only as a dataclass plus helper readers.
+  - That left one more route-registration assembly seam in `create_app()` even though the mapping depends only on `rag`, `startup_state`, `args`, and rerank-enabled state.
+- Decision:
+  - Extend `lightrag/api/app_route_context.py` with `build_route_registry_context(...)` as the authoritative helper for startup-state hydration and auth-handler resolution.
+  - Rewire `lightrag/api/lightrag_server.py` to call that helper instead of instantiating `RouteRegistryContext` and importing `auth_handler` inline.
+  - Preserve the existing startup-state field mapping plus lazy auth-handler fallback behavior without widening this run into broader route registration or LightRAG-construction changes.
+- Impact:
+  - `lightrag_server.py` sheds another narrow route-assembly block and moves closer to pure app assembly plus runtime wiring.
+  - The route-context seam now has focused regression coverage for hydrated startup state and both explicit and lazy auth-handler resolution in `tests/test_app_route_context.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.

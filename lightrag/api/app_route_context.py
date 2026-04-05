@@ -37,3 +37,27 @@ def resolve_auth_handler(context: RouteRegistryContext):
     from lightrag.api.auth import auth_handler
 
     return auth_handler
+
+
+def build_route_registry_context(
+    rag: LightRAG,
+    startup_state,
+    args: Any,
+    rerank_enabled: bool,
+    auth_handler: Any | None = None,
+) -> RouteRegistryContext:
+    context = RouteRegistryContext(
+        rag=rag,
+        doc_manager=startup_state.doc_manager,
+        api_key=startup_state.api_key,
+        args=args,
+        api_version_display=startup_state.api_version_display,
+        webui_assets_exist=startup_state.webui_assets_exist,
+        webui_title=startup_state.webui_title,
+        webui_description=startup_state.webui_description,
+        rerank_enabled=rerank_enabled,
+        auth_handler=auth_handler,
+    )
+    if context.auth_handler is None:
+        context.auth_handler = resolve_auth_handler(context)
+    return context
