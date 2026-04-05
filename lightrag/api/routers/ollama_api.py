@@ -1,12 +1,11 @@
-import json
-import re
 import asyncio
 import time
-from typing import Optional, Type
+import json
+import re
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
 
 from lightrag import LightRAG, QueryParam
 from lightrag.api.routers.ollama_models import (
@@ -24,8 +23,13 @@ from lightrag.api.routers.ollama_models import (
     OllamaVersionResponse as _OllamaVersionResponse,
     SearchMode as _SearchMode,
 )
+from lightrag.api.routers.ollama_request_helpers import (
+    estimate_tokens as _estimate_tokens,
+    parse_query_mode as _parse_query_mode,
+    parse_request_body as _parse_request_body,
+)
 from lightrag.api.utils_api import get_combined_auth_dependency
-from lightrag.utils import TiktokenTokenizer, logger
+from lightrag.utils import logger
 
 
 SearchMode = _SearchMode
@@ -41,106 +45,9 @@ OllamaTagResponse = _OllamaTagResponse
 OllamaRunningModelDetails = _OllamaRunningModelDetails
 OllamaRunningModel = _OllamaRunningModel
 OllamaPsResponse = _OllamaPsResponse
-
-
-async def parse_request_body(
-    request: Request, model_class: Type[BaseModel]
-) -> BaseModel:
-    """
-    Parse request body based on Content-Type header.
-    Supports both application/json and application/octet-stream.
-
-    Args:
-        request: The FastAPI Request object
-        model_class: The Pydantic model class to parse the request into
-
-    Returns:
-        An instance of the provided model_class
-    """
-    content_type = request.headers.get("content-type", "").lower()
-
-    try:
-        if content_type.startswith("application/json"):
-            # FastAPI already handles JSON parsing for us
-            body = await request.json()
-        elif content_type.startswith("application/octet-stream"):
-            # Manually parse octet-stream as JSON
-            body_bytes = await request.body()
-            body = json.loads(body_bytes.decode("utf-8"))
-        else:
-            # Try to parse as JSON for any other content type
-            body_bytes = await request.body()
-            body = json.loads(body_bytes.decode("utf-8"))
-
-        # Create an instance of the model
-        return model_class(**body)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid JSON in request body")
-    except Exception as e:
-        raise HTTPException(
-            status_code=400, detail=f"Error parsing request body: {str(e)}"
-        )
-
-
-def estimate_tokens(text: str) -> int:
-    """Estimate the number of tokens in text using tiktoken"""
-    tokens = TiktokenTokenizer().encode(text)
-    return len(tokens)
-
-
-def parse_query_mode(query: str) -> tuple[str, SearchMode, bool, Optional[str]]:
-    """Parse query prefix to determine search mode
-    Returns tuple of (cleaned_query, search_mode, only_need_context, user_prompt)
-
-    Examples:
-    - "/local[use mermaid format for diagrams] query string" -> (cleaned_query, SearchMode.local, False, "use mermaid format for diagrams")
-    - "/[use mermaid format for diagrams] query string" -> (cleaned_query, SearchMode.hybrid, False, "use mermaid format for diagrams")
-    - "/local  query string" -> (cleaned_query, SearchMode.local, False, None)
-    """
-    # Initialize user_prompt as None
-    user_prompt = None
-
-    # First check if there's a bracket format for user prompt
-    bracket_pattern = r"^/([a-z]*)\[(.*?)\](.*)"
-    bracket_match = re.match(bracket_pattern, query)
-
-    if bracket_match:
-        mode_prefix = bracket_match.group(1)
-        user_prompt = bracket_match.group(2)
-        remaining_query = bracket_match.group(3).lstrip()
-
-        # Reconstruct query, removing the bracket part
-        query = f"/{mode_prefix} {remaining_query}".strip()
-
-    # Unified handling of mode and only_need_context determination
-    mode_map = {
-        "/local ": (SearchMode.local, False),
-        "/global ": (
-            SearchMode.global_,
-            False,
-        ),  # global_ is used because 'global' is a Python keyword
-        "/naive ": (SearchMode.naive, False),
-        "/hybrid ": (SearchMode.hybrid, False),
-        "/mix ": (SearchMode.mix, False),
-        "/bypass ": (SearchMode.bypass, False),
-        "/context": (
-            SearchMode.mix,
-            True,
-        ),
-        "/localcontext": (SearchMode.local, True),
-        "/globalcontext": (SearchMode.global_, True),
-        "/hybridcontext": (SearchMode.hybrid, True),
-        "/naivecontext": (SearchMode.naive, True),
-        "/mixcontext": (SearchMode.mix, True),
-    }
-
-    for prefix, (mode, only_need_context) in mode_map.items():
-        if query.startswith(prefix):
-            # After removing prefix and leading spaces
-            cleaned_query = query[len(prefix) :].lstrip()
-            return cleaned_query, mode, only_need_context, user_prompt
-
-    return query, SearchMode.mix, False, user_prompt
+parse_request_body = _parse_request_body
+estimate_tokens = _estimate_tokens
+parse_query_mode = _parse_query_mode
 
 
 class OllamaAPI:

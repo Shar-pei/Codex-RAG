@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "AG1 completed by extracting Ollama API models out of ollama_api.py, reducing the largest active API router's mixed contract-and-runtime responsibility"
+  current_focus: "AH1 completed by extracting Ollama request helpers out of ollama_api.py, reducing the largest active API router's mixed parsing-and-runtime responsibility"
 
 tasks:
   - id: A0
@@ -918,3 +918,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving Ollama request/response schemas and the SearchMode enum into lightrag/api/routers/ollama_models.py while keeping ollama_api.py as the compatibility import surface."
+
+  - id: AH1
+    title: "Extract Ollama request helpers from ollama_api.py"
+    priority: 37
+    status: completed
+    depends_on: [AG1]
+    area: "api"
+    problem_statement: "The Ollama-compatible API module still mixes request parsing, token estimation, and query-prefix interpretation helpers with router setup and runtime stream/query behavior in the largest active API router module."
+    root_cause_hypothesis: "Ollama front-door helper logic accumulated directly inside ollama_api.py because those functions were added next to the handlers that use them, even though they depend on Request/BaseModel parsing, tokenizer access, and SearchMode contracts rather than route state."
+    definition_of_done:
+      - "Ollama request parsing, token estimation, and query-mode helpers live in a dedicated module"
+      - "ollama_api.py preserves the existing helper import surface through compatibility re-exports"
+      - "Focused tests cover helper re-exports plus key request parsing and query-mode behaviors"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/ollama_api.py lightrag/api/routers/ollama_request_helpers.py tests/test_ollama_request_helpers.py"
+      - "python -m pytest tests/test_ollama_request_helpers.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/ollama_api.py"
+      - "lightrag/api/routers/ollama_request_helpers.py"
+      - "tests/test_ollama_request_helpers.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving Ollama request parsing, token estimation, and query-prefix helpers into lightrag/api/routers/ollama_request_helpers.py while keeping ollama_api.py as the compatibility import surface."

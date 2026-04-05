@@ -693,3 +693,19 @@
   - `ollama_api.py` sheds a self-contained contract block and moves closer to a runtime-focused router module.
   - Ollama schema and enum contracts now have focused regression coverage without importing the full runtime flow.
   - A follow-on task can target request-parsing or streaming helper seams separately from the extracted Ollama API contracts.
+
+## DCR-045: AH1 moves Ollama front-door helpers behind a request-helper seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AG1`, `lightrag/api/routers/ollama_api.py` still opened with three top-level helpers: `parse_request_body(...)`, `estimate_tokens(...)`, and `parse_query_mode(...)`.
+  - Those functions handle content-type aware request parsing, tokenizer-backed token counting, and query-prefix interpretation against the extracted `SearchMode` contract, but they do not depend on the `OllamaAPI` router instance.
+  - Keeping them inline continued to make `ollama_api.py` responsible for both front-door helper logic and runtime stream/query orchestration.
+- Decision:
+  - Introduce `lightrag/api/routers/ollama_request_helpers.py` for Ollama request parsing, token estimation, and query-prefix parsing helpers.
+  - Reuse and re-export those helpers from `lightrag/api/routers/ollama_api.py` so existing imports remain stable.
+  - Leave the route handlers and streaming execution logic in `ollama_api.py` for now instead of widening this run into stream-helper extraction.
+- Impact:
+  - `ollama_api.py` sheds another self-contained helper block and moves closer to a runtime-focused router module.
+  - Ollama request parsing and query-prefix behavior now have focused regression coverage without importing the full router runtime.
+  - A follow-on task can target streaming execution helpers or metadata endpoint shaping separately from the extracted front-door helper seam.
