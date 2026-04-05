@@ -2,7 +2,6 @@
 This module contains all query-related routes for the LightRAG API.
 """
 
-import json
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from lightrag.api.utils_api import get_combined_auth_dependency
@@ -25,6 +24,10 @@ from lightrag.api.routers.query_response_helpers import (
     get_query_response_content as _get_query_response_content,
     prepare_query_references as _prepare_query_references,
 )
+from lightrag.api.routers.query_streaming import (
+    build_query_streaming_response as _build_query_streaming_response,
+    iter_query_stream_payloads as _iter_query_stream_payloads,
+)
 
 router = APIRouter(tags=["query"])
 
@@ -37,6 +40,8 @@ prepare_query_references = _prepare_query_references
 get_query_response_content = _get_query_response_content
 build_query_response_model = _build_query_response_model
 build_stream_complete_payload = _build_stream_complete_payload
+iter_query_stream_payloads = _iter_query_stream_payloads
+build_query_streaming_response = _build_query_streaming_response
 
 
 def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
@@ -282,51 +287,12 @@ def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
             stream_mode = request.stream if request.stream is not None else True
             param = request.to_query_params(stream_mode)
 
-            from fastapi.responses import StreamingResponse
-
             # Unified approach: always use aquery_llm for all cases
             result = await rag.aquery_llm(request.query, param=param)
-
-            async def stream_generator():
-                data = result.get("data", {})
-                references = prepare_query_references(
-                    data,
-                    include_references=request.include_references,
-                    include_chunk_content=request.include_chunk_content,
-                )
-                llm_response = result.get("llm_response", {})
-
-                if llm_response.get("is_streaming"):
-                    # Streaming mode: send references first, then stream response chunks
-                    if references is not None:
-                        yield f"{json.dumps({'references': references})}\n"
-
-                    response_stream = llm_response.get("response_iterator")
-                    if response_stream:
-                        try:
-                            async for chunk in response_stream:
-                                if chunk:  # Only send non-empty content
-                                    yield f"{json.dumps({'response': chunk})}\n"
-                        except Exception as e:
-                            logger.error(f"Streaming error: {str(e)}")
-                            yield f"{json.dumps({'error': str(e)})}\n"
-                else:
-                    # Non-streaming mode: send complete response in one message
-                    complete_response = build_stream_complete_payload(
-                        llm_response,
-                        references,
-                    )
-                    yield f"{json.dumps(complete_response)}\n"
-
-            return StreamingResponse(
-                stream_generator(),
-                media_type="application/x-ndjson",
-                headers={
-                    "Cache-Control": "no-cache",
-                    "Connection": "keep-alive",
-                    "Content-Type": "application/x-ndjson",
-                    "X-Accel-Buffering": "no",  # Ensure proper handling of streaming response when proxied by Nginx
-                },
+            return build_query_streaming_response(
+                result,
+                include_references=request.include_references,
+                include_chunk_content=request.include_chunk_content,
             )
         except Exception as e:
             logger.error(f"Error processing streaming query: {str(e)}", exc_info=True)

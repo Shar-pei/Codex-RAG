@@ -521,3 +521,19 @@
   - `query_routes.py` sheds its largest remaining static documentation block and moves closer to a route-focused module.
   - Query response examples and schemas now have a dedicated home that can be updated and tested without editing runtime query logic.
   - A follow-on task can target handler extraction or shared docstring cleanup separately from the OpenAPI response metadata.
+
+## DCR-034: W1 moves query streaming assembly behind a streaming seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `V1`, the largest remaining non-route runtime seam in `lightrag/api/routers/query_routes.py` was the nested `/query/stream` async generator plus `StreamingResponse` assembly.
+  - That block owns NDJSON line shaping, reference-first emission, empty-chunk filtering, non-stream fallback payload shaping, and stream-error conversion into `{"error": ...}` lines.
+  - Those behaviors depend on the unified `aquery_llm` result format, not on FastAPI route registration.
+- Decision:
+  - Introduce `lightrag/api/routers/query_streaming.py` for `iter_query_stream_payloads(...)` and `build_query_streaming_response(...)`.
+  - Reuse and re-export those helpers from `lightrag/api/routers/query_routes.py` so the router remains the compatibility surface for extracted query helpers.
+  - Leave non-stream query execution and `query_data` normalization in `query_routes.py` for now instead of widening this run into a broader handler extraction.
+- Impact:
+  - `query_routes.py` sheds its remaining inline NDJSON orchestration and moves closer to a route-only module.
+  - Streaming behavior now has focused regression coverage for reference emission, empty-chunk filtering, stream error lines, and non-stream fallback payloads.
+  - A follow-on task can target the remaining non-stream query execution or data-response normalization as separate seams.

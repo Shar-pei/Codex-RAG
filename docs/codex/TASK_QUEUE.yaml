@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "V1 completed by extracting query route OpenAPI response metadata out of query_routes.py, reducing the largest active router's remaining non-route documentation bulk"
+  current_focus: "W1 completed by extracting /query/stream NDJSON assembly out of query_routes.py, reducing the largest active router's remaining streaming orchestration seam"
 
 tasks:
   - id: A0
@@ -643,3 +643,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving the /query, /query/stream, and /query/data OpenAPI response dictionaries into lightrag/api/routers/query_route_docs.py while keeping query_routes.py as the compatibility import surface."
+
+  - id: W1
+    title: "Extract query streaming helpers from query_routes.py"
+    priority: 26
+    status: completed
+    depends_on: [V1]
+    area: "api"
+    problem_statement: "The query API router still owns the /query/stream NDJSON generator and StreamingResponse assembly alongside route registration."
+    root_cause_hypothesis: "Streaming query behavior evolved inline in query_routes.py because the generator was nested inside the endpoint, even though NDJSON payload assembly depends on the unified query result format rather than route registration."
+    definition_of_done:
+      - "Streaming NDJSON payload assembly lives in a dedicated helper module"
+      - "query_routes.py preserves the streaming helper import surface through compatibility aliases"
+      - "Focused tests cover streaming helper re-exports, chunk filtering, error lines, and non-stream fallback payload assembly"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/query_routes.py lightrag/api/routers/query_streaming.py tests/test_query_streaming.py"
+      - "python -m pytest tests/test_query_streaming.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/query_routes.py"
+      - "lightrag/api/routers/query_streaming.py"
+      - "tests/test_query_streaming.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving the /query/stream NDJSON iterator and StreamingResponse builder into lightrag/api/routers/query_streaming.py while keeping query_routes.py as the compatibility import surface."
