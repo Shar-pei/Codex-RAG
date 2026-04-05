@@ -21,12 +21,11 @@ from lightrag.api.app_startup_state import build_app_startup_state
 from lightrag.api.embedding_dimension_policy import apply_embedding_dimension_policy
 from lightrag.api.embedding_model_factory import build_embedding_func
 from lightrag.api.llm_config_cache import LLMConfigCache
-from lightrag.api.llm_model_factory import build_llm_model_func
-from lightrag.api.llm_model_kwargs import build_llm_model_kwargs
 from lightrag.api.ollama_server_info import build_ollama_server_infos
 from lightrag.api.query_validation_handlers import (
     create_query_validation_exception_handler,
 )
+from lightrag.api.rag_runtime_config import build_rag_kwargs
 from lightrag.api.rerank_model_factory import build_rerank_model_func
 from lightrag.api.runtime_model_timeouts import build_runtime_model_timeouts
 from lightrag.api.utils_api import display_splash_screen, check_env_file
@@ -99,45 +98,15 @@ def create_app(args):
     # Initialize RAG with unified configuration
     try:
         rag = LightRAG(
-            working_dir=args.working_dir,
-            workspace=args.workspace,
-            llm_model_func=build_llm_model_func(
-                args.llm_binding,
-                config_cache=config_cache,
+            **build_rag_kwargs(
                 args=args,
+                config_cache=config_cache,
                 llm_timeout=llm_timeout,
-            ),
-            llm_model_name=args.llm_model,
-            llm_model_max_async=args.max_async,
-            summary_max_tokens=args.summary_max_tokens,
-            summary_context_size=args.summary_context_size,
-            chunk_token_size=int(args.chunk_size),
-            chunk_overlap_token_size=int(args.chunk_overlap_size),
-            # chunking_func=lambda tk, content, sc, sc_only, overlap, size:
-            #     semantic_chunking_by_token_size(tk, content, overlap, size),
-            llm_model_kwargs=build_llm_model_kwargs(
-                args.llm_binding, args, llm_timeout
-            ),
-            embedding_func=embedding_func,
-            default_llm_timeout=llm_timeout,
-            default_embedding_timeout=embedding_timeout,
-            kv_storage=args.kv_storage,
-            graph_storage=args.graph_storage,
-            vector_storage=args.vector_storage,
-            doc_status_storage=args.doc_status_storage,
-            vector_db_storage_cls_kwargs={
-                "cosine_better_than_threshold": args.cosine_threshold
-            },
-            enable_llm_cache_for_entity_extract=args.enable_llm_cache_for_extract,
-            enable_llm_cache=args.enable_llm_cache,
-            rerank_model_func=rerank_model_func,
-            max_parallel_insert=args.max_parallel_insert,
-            max_graph_nodes=args.max_graph_nodes,
-            addon_params={
-                "language": args.summary_language,
-                "entity_types": args.entity_types,
-            },
-            ollama_server_infos=ollama_server_infos,
+                embedding_timeout=embedding_timeout,
+                embedding_func=embedding_func,
+                rerank_model_func=rerank_model_func,
+                ollama_server_infos=ollama_server_infos,
+            )
         )
     except Exception as e:
         logger.error(f"Failed to initialize LightRAG: {e}")

@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after BM1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after BN1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1804,3 +1804,31 @@ tasks:
       - "Queued after BL1 root-cause analysis showed the next narrow config seam in `create_app()` is the inline timeout loading block rather than the larger LightRAG constructor."
       - "Completed by introducing lightrag/api/runtime_model_timeouts.py and rewiring lightrag_server.py to consume `build_runtime_model_timeouts()`."
       - "Focused regression coverage lives in tests/test_runtime_model_timeouts.py."
+
+  - id: BN1
+    title: "Extract LightRAG kwargs assembly from lightrag_server.py"
+    priority: 69
+    status: completed
+    depends_on: [BM1]
+    area: "api"
+    problem_statement: "After `BM1`, the FastAPI server entrypoint still assembles the full `LightRAG(...)` kwargs inline, so app construction still owns a large runtime wiring block even after many smaller seams were extracted."
+    root_cause_hypothesis: "The remaining `LightRAG` constructor kwargs block already forms a self-contained contract over runtime args, helper outputs, and timeout values, so the narrowest next structural seam is to move that kwargs mapping behind a dedicated helper before attempting a larger constructor or app-factory extraction."
+    definition_of_done:
+      - "A dedicated helper module owns `LightRAG` constructor kwargs assembly"
+      - "`lightrag_server.py` uses that helper instead of mapping all `LightRAG` kwargs inline"
+      - "The existing builder calls, timeout forwarding, storage wiring, and addon parameter mapping remain unchanged"
+      - "Focused tests cover representative `LightRAG` kwargs mapping and helper-call forwarding"
+    validation_commands:
+      - "python -m ruff check lightrag/api/rag_runtime_config.py lightrag/api/lightrag_server.py tests/test_rag_runtime_config.py"
+      - "python -m pytest tests/test_rag_runtime_config.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/rag_runtime_config.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_rag_runtime_config.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BM1 root-cause analysis showed the remaining runtime wiring hotspot in `create_app()` is the inline `LightRAG` kwargs mapping rather than another tiny scalar assignment."
+      - "Completed by introducing lightrag/api/rag_runtime_config.py for `LightRAG` kwargs assembly and rewiring lightrag_server.py to pass `LightRAG(**build_rag_kwargs(...))`."
+      - "Focused regression coverage lives in tests/test_rag_runtime_config.py."

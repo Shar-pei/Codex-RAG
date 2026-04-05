@@ -1203,3 +1203,19 @@
   - `lightrag_server.py` sheds another narrow runtime-config block and moves incrementally closer to pure app assembly plus runtime wiring.
   - The extracted seam now has focused regression coverage for default and env-driven timeout resolution in `tests/test_runtime_model_timeouts.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-077: BN1 moves LightRAG kwargs assembly behind a runtime-config helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BM1`, `lightrag/api/lightrag_server.py` still contained the full inline `LightRAG(...)` kwargs mapping even though many smaller startup and provider-specific seams had already been extracted.
+  - That block no longer owned provider implementations, but it still reassembled runtime args, helper outputs, timeouts, storage selection, and addon metadata into one large constructor call.
+  - The kwargs mapping already formed a self-contained contract that could be validated without constructing the whole FastAPI app.
+- Decision:
+  - Introduce `lightrag/api/rag_runtime_config.py` with `build_rag_kwargs(...)` as the authoritative helper for `LightRAG` constructor kwargs assembly.
+  - Rewire `lightrag/api/lightrag_server.py` to instantiate `LightRAG` through `LightRAG(**build_rag_kwargs(...))` instead of mapping all kwargs inline.
+  - Preserve the existing builder calls, timeout forwarding, storage wiring, and addon parameter mapping without widening this run into a larger `LightRAG` factory extraction.
+- Impact:
+  - `lightrag_server.py` sheds another large runtime-wiring block and moves incrementally closer to pure app assembly plus orchestration.
+  - The extracted seam now has focused regression coverage for `LightRAG` kwargs mapping and helper-call forwarding in `tests/test_rag_runtime_config.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
