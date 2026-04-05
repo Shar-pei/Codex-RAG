@@ -1123,3 +1123,19 @@
   - `lightrag_server.py` sheds another narrow embedding-policy block and moves closer to app assembly plus runtime wiring only.
   - The extracted dimension-policy contract now has focused regression coverage in `tests/test_embedding_dimension_policy.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-072: BI1 moves the embedding factory behind an embedding-model helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BH1`, the remaining embedding hotspot in `lightrag/api/lightrag_server.py` was the nested `create_optimized_embedding_function(...)`.
+  - That helper already owned a self-contained contract: provider-default inspection, provider-specific optimized embedding dispatch, and final `EmbeddingFunc` assembly.
+  - Keeping it inline meant the app-factory module still mixed one large provider-specific embedding factory into app construction even after the surrounding startup, LLM, rerank, and dimension-policy seams had been extracted.
+- Decision:
+  - Introduce `lightrag/api/embedding_model_factory.py` as the authoritative home for embedding provider-default resolution, provider-specific dispatch, and `EmbeddingFunc` assembly.
+  - Rewire `lightrag/api/lightrag_server.py` to call `build_embedding_func(...)` instead of defining the nested embedding factory inline.
+  - Preserve the existing provider-default inheritance, cached Ollama/Gemini option usage, and ModelScope initializer behavior without widening this run into broader embedding behavior changes.
+- Impact:
+  - `lightrag_server.py` sheds the remaining large embedding-factory block and moves closer to app assembly plus runtime wiring only.
+  - The extracted embedding-factory contract now has focused regression coverage in `tests/test_embedding_model_factory.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.

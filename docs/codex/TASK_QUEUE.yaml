@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after BH1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after BI1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1664,3 +1664,31 @@ tasks:
       - "Queued after BG1 root-cause analysis showed the next narrow self-contained seam in `create_app()` is the embedding dimension-delivery policy block rather than the full embedding factory."
       - "Completed by introducing lightrag/api/embedding_dimension_policy.py for `send_dimensions` policy plus logging, then rewiring lightrag_server.py to apply that helper instead of deciding dimension delivery inline."
       - "Focused regression coverage lives in tests/test_embedding_dimension_policy.py."
+
+  - id: BI1
+    title: "Extract embedding factory from lightrag_server.py"
+    priority: 64
+    status: completed
+    depends_on: [BH1]
+    area: "api"
+    problem_statement: "The FastAPI server entrypoint still defines the full embedding factory inline, so app construction owns provider-default resolution, provider-specific embedding dispatch, and EmbeddingFunc assembly."
+    root_cause_hypothesis: "After `BH1`, the remaining embedding hotspot in `create_app()` was no longer the `send_dimensions` policy but the nested `create_optimized_embedding_function(...)` itself: it already formed a self-contained factory over `config_cache`, provider binding inputs, and `EmbeddingFunc`, yet it remained embedded in the app factory instead of becoming an authoritative helper module."
+    definition_of_done:
+      - "A dedicated helper module owns embedding provider-default resolution, optimized embedding dispatch, and EmbeddingFunc assembly"
+      - "`lightrag_server.py` uses that helper instead of defining the embedding factory inline"
+      - "The existing provider-default inheritance and representative provider dispatch behavior remain unchanged"
+      - "Focused tests cover representative provider-default, cached-option, and modelscope initializer behavior"
+    validation_commands:
+      - "python -m ruff check lightrag/api/embedding_model_factory.py lightrag/api/lightrag_server.py tests/test_embedding_model_factory.py"
+      - "python -m pytest tests/test_embedding_model_factory.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/embedding_model_factory.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_embedding_model_factory.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BH1 root-cause analysis showed the remaining embedding hotspot in `create_app()` is the nested embedding factory itself rather than another tiny policy branch."
+      - "Completed by introducing lightrag/api/embedding_model_factory.py for provider-default resolution, provider-specific dispatch, and EmbeddingFunc assembly, then rewiring lightrag_server.py to call that helper."
+      - "Focused regression coverage lives in tests/test_embedding_model_factory.py."

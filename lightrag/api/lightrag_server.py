@@ -19,6 +19,7 @@ from lightrag.api.app_lifespan import create_app_lifespan
 from lightrag.api.app_runtime_args import normalize_runtime_args
 from lightrag.api.app_startup_state import build_app_startup_state
 from lightrag.api.embedding_dimension_policy import apply_embedding_dimension_policy
+from lightrag.api.embedding_model_factory import build_embedding_func
 from lightrag.api.llm_config_cache import LLMConfigCache
 from lightrag.api.llm_model_factory import build_llm_model_func
 from lightrag.api.llm_model_kwargs import build_llm_model_kwargs
@@ -34,7 +35,6 @@ from .config import (
 from lightrag.utils import get_env_value
 from lightrag import LightRAG
 from lightrag.api import __api_version__
-from lightrag.utils import EmbeddingFunc
 from lightrag.api.app_route_context import RouteRegistryContext
 from lightrag.api.route_registry import register_app_routes
 from lightrag.constants import (
@@ -76,233 +76,13 @@ def create_app(args):
     # Create working directory if it doesn't exist
     Path(args.working_dir).mkdir(parents=True, exist_ok=True)
 
-    def create_optimized_embedding_function(
-        config_cache: LLMConfigCache, binding, model, host, api_key, args
-    ) -> EmbeddingFunc:
-        """
-        Create optimized embedding function and return an EmbeddingFunc instance
-        with proper max_token_size inheritance from provider defaults.
-
-        This function:
-        1. Imports the provider embedding function
-        2. Extracts max_token_size and embedding_dim from provider if it's an EmbeddingFunc
-        3. Creates an optimized wrapper that calls the underlying function directly (avoiding double-wrapping)
-        4. Returns a properly configured EmbeddingFunc instance
-        """
-
-        # Step 1: Import provider function and extract default attributes
-        provider_func = None
-        provider_max_token_size = None
-        provider_embedding_dim = None
-
-        try:
-            if binding == "openai":
-                from lightrag.llm.openai import openai_embed
-
-                provider_func = openai_embed
-            elif binding == "ollama":
-                from lightrag.llm.ollama import ollama_embed
-
-                provider_func = ollama_embed
-            elif binding == "gemini":
-                from lightrag.llm.gemini import gemini_embed
-
-                provider_func = gemini_embed
-            elif binding == "jina":
-                from lightrag.llm.jina import jina_embed
-
-                provider_func = jina_embed
-            elif binding == "azure_openai":
-                from lightrag.llm.azure_openai import azure_openai_embed
-
-                provider_func = azure_openai_embed
-            elif binding == "aws_bedrock":
-                from lightrag.llm.bedrock import bedrock_embed
-
-                provider_func = bedrock_embed
-            elif binding == "lollms":
-                from lightrag.llm.lollms import lollms_embed
-
-                provider_func = lollms_embed
-            elif binding == "modelscope":
-                from lightrag.llm.hf import modelscope_embed
-
-                provider_func = modelscope_embed
-
-            # Extract attributes if provider is an EmbeddingFunc
-            if provider_func and isinstance(provider_func, EmbeddingFunc):
-                provider_max_token_size = provider_func.max_token_size
-                provider_embedding_dim = provider_func.embedding_dim
-                logger.debug(
-                    f"Extracted from {binding} provider: "
-                    f"max_token_size={provider_max_token_size}, "
-                    f"embedding_dim={provider_embedding_dim}"
-                )
-        except ImportError as e:
-            logger.warning(f"Could not import provider function for {binding}: {e}")
-
-        # Step 2: Apply priority (user config > provider default)
-        # For max_token_size: explicit env var > provider default > None
-        final_max_token_size = args.embedding_token_limit or provider_max_token_size
-        # For embedding_dim: user config (always has value) takes priority
-        # Only use provider default if user config is explicitly None (which shouldn't happen)
-        final_embedding_dim = (
-            args.embedding_dim if args.embedding_dim else provider_embedding_dim
-        )
-
-        # Step 3: Create optimized embedding function (calls underlying function directly)
-        async def optimized_embedding_function(texts, embedding_dim=None):
-            try:
-                if binding == "lollms":
-                    from lightrag.llm.lollms import lollms_embed
-
-                    # Get real function, skip EmbeddingFunc wrapper if present
-                    actual_func = (
-                        lollms_embed.func
-                        if isinstance(lollms_embed, EmbeddingFunc)
-                        else lollms_embed
-                    )
-                    return await actual_func(
-                        texts, embed_model=model, host=host, api_key=api_key
-                    )
-                elif binding == "ollama":
-                    from lightrag.llm.ollama import ollama_embed
-
-                    # Get real function, skip EmbeddingFunc wrapper if present
-                    actual_func = (
-                        ollama_embed.func
-                        if isinstance(ollama_embed, EmbeddingFunc)
-                        else ollama_embed
-                    )
-
-                    # Use pre-processed configuration if available
-                    if config_cache.ollama_embedding_options is not None:
-                        ollama_options = config_cache.ollama_embedding_options
-                    else:
-                        from lightrag.llm.binding_options import OllamaEmbeddingOptions
-
-                        ollama_options = OllamaEmbeddingOptions.options_dict(args)
-
-                    return await actual_func(
-                        texts,
-                        embed_model=model,
-                        host=host,
-                        api_key=api_key,
-                        options=ollama_options,
-                    )
-                elif binding == "azure_openai":
-                    from lightrag.llm.azure_openai import azure_openai_embed
-
-                    actual_func = (
-                        azure_openai_embed.func
-                        if isinstance(azure_openai_embed, EmbeddingFunc)
-                        else azure_openai_embed
-                    )
-                    return await actual_func(texts, model=model, api_key=api_key)
-                elif binding == "aws_bedrock":
-                    from lightrag.llm.bedrock import bedrock_embed
-
-                    actual_func = (
-                        bedrock_embed.func
-                        if isinstance(bedrock_embed, EmbeddingFunc)
-                        else bedrock_embed
-                    )
-                    return await actual_func(texts, model=model)
-                elif binding == "jina":
-                    from lightrag.llm.jina import jina_embed
-
-                    actual_func = (
-                        jina_embed.func
-                        if isinstance(jina_embed, EmbeddingFunc)
-                        else jina_embed
-                    )
-                    return await actual_func(
-                        texts,
-                        embedding_dim=embedding_dim,
-                        base_url=host,
-                        api_key=api_key,
-                    )
-                elif binding == "gemini":
-                    from lightrag.llm.gemini import gemini_embed
-
-                    actual_func = (
-                        gemini_embed.func
-                        if isinstance(gemini_embed, EmbeddingFunc)
-                        else gemini_embed
-                    )
-
-                    # Use pre-processed configuration if available
-                    if config_cache.gemini_embedding_options is not None:
-                        gemini_options = config_cache.gemini_embedding_options
-                    else:
-                        from lightrag.llm.binding_options import GeminiEmbeddingOptions
-
-                        gemini_options = GeminiEmbeddingOptions.options_dict(args)
-
-                    return await actual_func(
-                        texts,
-                        model=model,
-                        base_url=host,
-                        api_key=api_key,
-                        embedding_dim=embedding_dim,
-                        task_type=gemini_options.get("task_type", "RETRIEVAL_DOCUMENT"),
-                    )
-                elif binding ==  "openai":
-                # openai and compatible
-                    from lightrag.llm.openai import openai_embed
-
-                    actual_func = (
-                        openai_embed.func
-                        if isinstance(openai_embed, EmbeddingFunc)
-                        else openai_embed
-                    )
-                    return await actual_func(
-                        texts,
-                        model=model,
-                        base_url=host,
-                        api_key=api_key,
-                        embedding_dim=embedding_dim,
-                    )
-                else:
-                    from lightrag.llm.hf import modelscope_embed,initialize_bge_model_optimized
-                    actual_func = (
-                        modelscope_embed.func
-                        if isinstance(modelscope_embed, EmbeddingFunc)
-                        else modelscope_embed
-                    )
-                    model_path = os.getenv(r"HF_EMBEDDING_MODEL_PATH", r"D:\PythonProject\models\bge-large-zh-v1.5")
-                    modelscope_tokenizer,modelscope_model = initialize_bge_model_optimized(model_path)
-                    return await actual_func(
-                        texts,
-                        tokenizer=modelscope_tokenizer,
-                        embed_model=modelscope_model
-                    )
-            except ImportError as e:
-                raise Exception(f"Failed to import {binding} embedding: {e}")
-
-        # Step 4: Wrap in EmbeddingFunc and return
-        embedding_func_instance = EmbeddingFunc(
-            embedding_dim=final_embedding_dim,
-            func=optimized_embedding_function,
-            max_token_size=final_max_token_size,
-            send_dimensions=False,  # Will be set later based on binding requirements
-        )
-
-        # Log final embedding configuration
-        logger.info(
-            f"Embedding config: binding={binding} model={model} "
-            f"embedding_dim={final_embedding_dim} max_token_size={final_max_token_size}"
-        )
-
-        return embedding_func_instance
-
     llm_timeout = get_env_value("LLM_TIMEOUT", DEFAULT_LLM_TIMEOUT, int)
     embedding_timeout = get_env_value(
         "EMBEDDING_TIMEOUT", DEFAULT_EMBEDDING_TIMEOUT, int
     )
 
     # Create the EmbeddingFunc instance (now returns complete EmbeddingFunc with max_token_size)
-    embedding_func = create_optimized_embedding_function(
+    embedding_func = build_embedding_func(
         config_cache=config_cache,
         binding=args.embedding_binding,
         model=args.embedding_model,
