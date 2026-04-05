@@ -725,3 +725,19 @@
   - `ollama_api.py` sheds its remaining static metadata response block and moves closer to a runtime-focused router module.
   - Ollama metadata payload shaping now has focused regression coverage for version, tags, and running-model responses without importing the full router runtime.
   - A follow-on task can target generate/chat execution helpers separately from the extracted metadata seam.
+
+## DCR-047: AJ1 moves the Ollama generate flow behind a generate-handler seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AI1`, the narrowest remaining runtime block in `lightrag/api/routers/ollama_api.py` was the `/generate` endpoint.
+  - That path owns direct LLM invocation, token accounting, non-stream fallback shaping, and NDJSON streaming assembly, but it does not depend on the chat-specific history/query-mode logic or route registration.
+  - Keeping it inline continued to make `ollama_api.py` responsible for both `/generate` and `/chat` runtime orchestration at once.
+- Decision:
+  - Introduce `lightrag/api/routers/ollama_generate_handlers.py` for the `/generate` execution path and streaming payload iterator.
+  - Reuse and re-export those helpers from `lightrag/api/routers/ollama_api.py` so existing imports remain stable.
+  - Leave the `/chat` runtime flow in `ollama_api.py` for now instead of widening this run into a shared generate/chat streaming abstraction.
+- Impact:
+  - `ollama_api.py` sheds one full runtime endpoint path and moves closer to a chat-focused router module.
+  - Ollama generate behavior now has focused regression coverage for non-stream fallback text and string-based streaming payload assembly without importing the full router runtime.
+  - A follow-on task can target `/chat` execution helpers or a shared streaming abstraction separately from the extracted generate seam.

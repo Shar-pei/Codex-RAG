@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "AI1 completed by extracting Ollama metadata response builders out of ollama_api.py, reducing the largest active API router's remaining static response shaping"
+  current_focus: "AJ1 completed by extracting Ollama generate handlers out of ollama_api.py, reducing the largest active API router's mixed generate-and-chat runtime responsibility"
 
 tasks:
   - id: A0
@@ -968,3 +968,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving Ollama metadata response builders for /version, /tags, and /ps into lightrag/api/routers/ollama_metadata_endpoints.py while keeping ollama_api.py as the compatibility import surface."
+
+  - id: AJ1
+    title: "Extract Ollama generate handlers from ollama_api.py"
+    priority: 39
+    status: completed
+    depends_on: [AI1]
+    area: "api"
+    problem_statement: "The Ollama-compatible API module still owns the entire /generate execution path, including direct LLM invocation, non-stream fallback shaping, and NDJSON streaming assembly, alongside the separate /chat flow."
+    root_cause_hypothesis: "Generate handling accumulated inline in ollama_api.py because it looked simpler than chat, even though the /generate runtime depends on rag access, token estimation, and server metadata rather than route registration."
+    definition_of_done:
+      - "The /generate execution path lives in a dedicated helper module"
+      - "ollama_api.py preserves the generate helper import surface through compatibility re-exports"
+      - "Focused tests cover helper re-exports, non-stream fallback behavior, and streaming string-response assembly"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/ollama_api.py lightrag/api/routers/ollama_generate_handlers.py tests/test_ollama_generate_handlers.py"
+      - "python -m pytest tests/test_ollama_generate_handlers.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/ollama_api.py"
+      - "lightrag/api/routers/ollama_generate_handlers.py"
+      - "tests/test_ollama_generate_handlers.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving the /generate execution and streaming payload assembly into lightrag/api/routers/ollama_generate_handlers.py while keeping ollama_api.py as the compatibility import surface."
