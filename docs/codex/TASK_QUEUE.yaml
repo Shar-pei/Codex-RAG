@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after AY1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after AZ1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1412,3 +1412,31 @@ tasks:
       - "Queued after AX1 root-cause analysis showed the next narrow self-contained seam in create_app() is the inline FastAPI lifespan block rather than the larger model-binding helpers."
       - "Completed by introducing lightrag/api/app_lifespan.py for startup/shutdown orchestration, rewiring lightrag_server.py to instantiate FastAPI with that helper after `rag` is constructed, and removing the inline lifecycle closure."
       - "Focused regression coverage lives in tests/test_app_lifespan.py."
+
+  - id: AZ1
+    title: "Extract FastAPI app kwargs assembly from lightrag_server.py"
+    priority: 55
+    status: completed
+    depends_on: [AY1]
+    area: "api"
+    problem_statement: "The FastAPI server entrypoint still assembles the app title, Swagger description, OpenAPI/ReDoc URLs, and Swagger UI parameters inline, so app construction owns static API metadata and docs UI policy alongside runtime wiring."
+    root_cause_hypothesis: "Previous extractions focused on runtime-heavy startup seams first, but the FastAPI kwargs block stayed inside `create_app()` because it only depended on `api_key` and the API version string, so the static app-configuration contract never became its own helper module."
+    definition_of_done:
+      - "A dedicated helper module owns the FastAPI app kwargs assembly for title, description, docs URLs, and Swagger UI parameters"
+      - "`lightrag_server.py` uses that helper instead of composing the kwargs inline"
+      - "The existing API-key-enabled description note and Swagger UI parameter behavior remain unchanged"
+      - "Focused tests cover the extracted app-kwargs contract with and without an API key"
+    validation_commands:
+      - "python -m ruff check lightrag/api/app_factory_config.py lightrag/api/lightrag_server.py tests/test_app_factory_config.py"
+      - "python -m pytest tests/test_app_factory_config.py -q"
+    risk_level: "low"
+    expected_files:
+      - "lightrag/api/app_factory_config.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_app_factory_config.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after AY1 root-cause analysis showed the next narrow self-contained seam in create_app() is the static FastAPI kwargs block for app metadata and Swagger UI policy."
+      - "Completed by introducing lightrag/api/app_factory_config.py for static FastAPI metadata and Swagger UI kwargs, then rewiring lightrag_server.py to consume that helper instead of composing the kwargs inline."
+      - "Focused regression coverage lives in tests/test_app_factory_config.py."

@@ -979,3 +979,19 @@
   - `lightrag_server.py` sheds another runtime-heavy startup block and moves closer to pure app construction plus dependency wiring.
   - The lifecycle contract now has focused regression coverage for startup, shutdown, background-task initialization, and the Gunicorn/Uvicorn cleanup branch in `tests/test_app_lifespan.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-063: AZ1 moves static FastAPI app kwargs behind an app-factory-config helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AY1`, `lightrag/api/lightrag_server.py` still assembled the static `FastAPI` kwargs inline even though that block does not depend on route registration or runtime storage wiring.
+  - The remaining inline block owned the app title, description text, API-key-enabled note, OpenAPI/ReDoc URLs, and Swagger UI parameter policy.
+  - Keeping those values inside `create_app()` meant the server entrypoint still mixed static API metadata shaping with runtime dependency construction.
+- Decision:
+  - Introduce `lightrag/api/app_factory_config.py` with `build_app_kwargs(api_key, api_version)` as the authoritative helper for static FastAPI metadata and Swagger UI configuration.
+  - Rewire `lightrag/api/lightrag_server.py` to call that helper instead of composing the app kwargs inline.
+  - Preserve the existing API-key-enabled description suffix, documentation URLs, and Swagger UI parameters without widening this run into broader app-factory extraction.
+- Impact:
+  - `lightrag_server.py` sheds another self-contained app-construction block and moves closer to runtime wiring only.
+  - The static FastAPI config contract now has focused regression coverage in `tests/test_app_factory_config.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.

@@ -14,6 +14,7 @@ import configparser
 from dotenv import load_dotenv
 from lightrag._pipmaster import get_pipmaster
 from lightrag.api.app_cors import configure_cors
+from lightrag.api.app_factory_config import build_app_kwargs
 from lightrag.api.app_lifespan import create_app_lifespan
 from lightrag.api.frontend_build_checker import check_frontend_build
 from lightrag.api.query_validation_handlers import (
@@ -194,30 +195,7 @@ def create_app(args):
     # Initialize document manager with workspace support for data isolation
     doc_manager = DocumentManager(args.input_dir, workspace=args.workspace)
 
-    # Initialize FastAPI
-    base_description = (
-        "Providing API for LightRAG core, Web UI and Ollama Model Emulation"
-    )
-    swagger_description = (
-        base_description
-        + (" (API-Key Enabled)" if api_key else "")
-        + "\n\n[View ReDoc documentation](/redoc)"
-    )
-    app_kwargs = {
-        "title": "LightRAG Server API",
-        "description": swagger_description,
-        "version": __api_version__,
-        "openapi_url": "/openapi.json",  # Explicitly set OpenAPI schema URL
-        "docs_url": None,  # Disable default docs, we'll create custom endpoint
-        "redoc_url": "/redoc",  # Explicitly set redoc URL
-    }
-
-    # Configure Swagger UI parameters
-    # Enable persistAuthorization and tryItOutEnabled for better user experience
-    app_kwargs["swagger_ui_parameters"] = {
-        "persistAuthorization": True,
-        "tryItOutEnabled": True,
-    }
+    app_kwargs = build_app_kwargs(api_key=api_key, api_version=__api_version__)
 
     # Create working directory if it doesn't exist
     Path(args.working_dir).mkdir(parents=True, exist_ok=True)
