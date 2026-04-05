@@ -995,3 +995,19 @@
   - `lightrag_server.py` sheds another self-contained app-construction block and moves closer to runtime wiring only.
   - The static FastAPI config contract now has focused regression coverage in `tests/test_app_factory_config.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-064: BA1 moves runtime arg preflight behind an app-runtime-args helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AZ1`, `lightrag/api/lightrag_server.py` still owned a compact but distinct preflight block: supported-binding validation, default binding-host filling, and SSL certificate/key path checks.
+  - That logic only depended on runtime args plus `get_default_host()`, but it remained embedded in `create_app()` alongside app assembly and model wiring.
+  - Keeping it inline meant the server entrypoint still mixed preflight runtime-arg normalization with the much larger application construction path.
+- Decision:
+  - Introduce `lightrag/api/app_runtime_args.py` with `normalize_runtime_args(args)` as the authoritative helper for supported-binding checks, default-host filling, and SSL file validation.
+  - Rewire `lightrag/api/lightrag_server.py` to call that helper instead of normalizing runtime args inline.
+  - Preserve the existing unsupported-binding errors, default-host resolution behavior, and SSL validation messages without widening this run into broader argument parsing changes.
+- Impact:
+  - `lightrag_server.py` sheds another self-contained startup/preflight block and moves closer to dependency wiring only.
+  - The runtime-arg contract now has focused regression coverage in `tests/test_app_runtime_args.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.

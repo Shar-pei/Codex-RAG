@@ -16,6 +16,7 @@ from lightrag._pipmaster import get_pipmaster
 from lightrag.api.app_cors import configure_cors
 from lightrag.api.app_factory_config import build_app_kwargs
 from lightrag.api.app_lifespan import create_app_lifespan
+from lightrag.api.app_runtime_args import normalize_runtime_args
 from lightrag.api.frontend_build_checker import check_frontend_build
 from lightrag.api.query_validation_handlers import (
     create_query_validation_exception_handler,
@@ -24,7 +25,6 @@ from lightrag.api.utils_api import display_splash_screen, check_env_file
 from .config import (
     global_args,
     update_uvicorn_mode_config,
-    get_default_host,
 )
 from lightrag.utils import get_env_value
 from lightrag import LightRAG
@@ -147,47 +147,7 @@ def create_app(args):
     # Create configuration cache (this will output configuration logs)
     config_cache = LLMConfigCache(args)
 
-    # Verify that bindings are correctly setup
-    if args.llm_binding not in [
-        "modelscope",
-        "lollms",
-        "ollama",
-        "openai",
-        "azure_openai",
-        "aws_bedrock",
-        "gemini",
-    ]:
-        raise Exception("llm binding not supported")
-
-    if args.embedding_binding not in [
-        "modelscope",
-        "lollms",
-        "ollama",
-        "openai",
-        "azure_openai",
-        "aws_bedrock",
-        "jina",
-        "gemini",
-    ]:
-        raise Exception("embedding binding not supported")
-
-    # Set default hosts if not provided
-    if args.llm_binding_host is None:
-        args.llm_binding_host = get_default_host(args.llm_binding)
-
-    if args.embedding_binding_host is None:
-        args.embedding_binding_host = get_default_host(args.embedding_binding)
-
-    # Add SSL validation
-    if args.ssl:
-        if not args.ssl_certfile or not args.ssl_keyfile:
-            raise Exception(
-                "SSL certificate and key files must be provided when SSL is enabled"
-            )
-        if not os.path.exists(args.ssl_certfile):
-            raise Exception(f"SSL certificate file not found: {args.ssl_certfile}")
-        if not os.path.exists(args.ssl_keyfile):
-            raise Exception(f"SSL key file not found: {args.ssl_keyfile}")
+    normalize_runtime_args(args)
 
     # Check if API key is provided either through env var or args
     api_key = os.getenv("LIGHTRAG_API_KEY") or args.key

@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after AZ1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after BA1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1440,3 +1440,31 @@ tasks:
       - "Queued after AY1 root-cause analysis showed the next narrow self-contained seam in create_app() is the static FastAPI kwargs block for app metadata and Swagger UI policy."
       - "Completed by introducing lightrag/api/app_factory_config.py for static FastAPI metadata and Swagger UI kwargs, then rewiring lightrag_server.py to consume that helper instead of composing the kwargs inline."
       - "Focused regression coverage lives in tests/test_app_factory_config.py."
+
+  - id: BA1
+    title: "Extract app runtime arg normalization from lightrag_server.py"
+    priority: 56
+    status: completed
+    depends_on: [AZ1]
+    area: "api"
+    problem_statement: "The FastAPI server entrypoint still validates supported bindings, fills missing binding hosts, and enforces SSL file requirements inline, so app startup owns a runtime-argument normalization contract alongside app assembly."
+    root_cause_hypothesis: "Previous extractions peeled off startup helpers around app construction first, but the runtime arg checks stayed inside `create_app()` because they only depended on `args` and `get_default_host()`, so the server's preflight argument contract never became its own helper seam."
+    definition_of_done:
+      - "A dedicated helper module owns runtime arg validation for supported bindings, default binding hosts, and SSL file requirements"
+      - "`lightrag_server.py` uses that helper instead of normalizing the runtime args inline"
+      - "The existing unsupported-binding errors, default-host behavior, and SSL validation messages remain unchanged"
+      - "Focused tests cover supported-host filling plus the validation error branches"
+    validation_commands:
+      - "python -m ruff check lightrag/api/app_runtime_args.py lightrag/api/lightrag_server.py tests/test_app_runtime_args.py"
+      - "python -m pytest tests/test_app_runtime_args.py -q"
+    risk_level: "low"
+    expected_files:
+      - "lightrag/api/app_runtime_args.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_app_runtime_args.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after AZ1 root-cause analysis showed the next narrow self-contained seam in create_app() is the runtime argument preflight block for binding support, default hosts, and SSL file validation."
+      - "Completed by introducing lightrag/api/app_runtime_args.py for supported-binding checks, default-host filling, and SSL file validation, then rewiring lightrag_server.py to delegate runtime arg normalization through that helper."
+      - "Focused regression coverage lives in tests/test_app_runtime_args.py."
