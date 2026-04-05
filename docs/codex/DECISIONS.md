@@ -489,3 +489,19 @@
   - `query_routes.py` sheds a self-contained contract block and moves toward a clearer routing focus.
   - Query model validation and conversion rules now have focused regression coverage without importing the full query router.
   - A follow-on task can target route helper extraction or response-example cleanup separately from the query API contracts.
+
+## DCR-032: U1 moves shared query response formatting behind a response-helper seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `T1`, `lightrag/api/routers/query_routes.py` still duplicated the same result-shaping logic in both `/query` and `/query/stream`: extracting references from the unified `aquery_llm` result, optionally enriching them with chunk content, and building final non-stream response payloads.
+  - That logic depends on the unified query result shape, not on FastAPI route state.
+  - Keeping it inline risks format drift between non-stream and stream fallbacks whenever one handler changes its reference-enrichment rules.
+- Decision:
+  - Introduce `lightrag/api/routers/query_response_helpers.py` for `prepare_query_references(...)`, `get_query_response_content(...)`, `build_query_response_model(...)`, and `build_stream_complete_payload(...)`.
+  - Import those helpers back into `lightrag/api/routers/query_routes.py` so existing imports from `query_routes` remain stable.
+  - Leave the route handlers and their OpenAPI examples in `query_routes.py` for now instead of widening this run into a full route-helper extraction.
+- Impact:
+  - `query_routes.py` drops another duplicated internal seam and keeps one place for reference enrichment and non-stream payload rules.
+  - Focused tests now protect chunk-content enrichment, fallback response text, and stream-fallback payload shaping without importing the full router.
+  - A follow-on task can target route-helper extraction or example-cleanup separately from the shared response formatting logic.

@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "T1 completed by extracting query API models out of query_routes.py, reducing the largest active router's mixed model-and-route responsibility"
+  current_focus: "U1 completed by extracting query response formatting helpers out of query_routes.py, reducing duplicated result-shaping logic in the largest active router"
 
 tasks:
   - id: A0
@@ -593,3 +593,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving QueryRequest, QueryResponse, QueryDataResponse, StreamChunkResponse, and related response models into lightrag/api/routers/query_models.py while keeping query_routes.py as the compatibility import surface."
+
+  - id: U1
+    title: "Extract query response formatting helpers from query_routes.py"
+    priority: 24
+    status: completed
+    depends_on: [T1]
+    area: "api"
+    problem_statement: "The query API router still duplicates reference enrichment and final response shaping logic across the /query and /query/stream handlers."
+    root_cause_hypothesis: "Both query handlers evolved around the same unified `aquery_llm` result format, but their response-formatting steps stayed inline instead of converging on one helper seam."
+    definition_of_done:
+      - "Shared query response formatting helpers live in a dedicated module"
+      - "query_routes.py preserves the helper import surface through compatibility aliases"
+      - "Focused tests cover helper re-exports and key reference/response formatting behaviors"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/query_routes.py lightrag/api/routers/query_response_helpers.py tests/test_query_response_helpers.py"
+      - "python -m pytest tests/test_query_response_helpers.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/query_routes.py"
+      - "lightrag/api/routers/query_response_helpers.py"
+      - "tests/test_query_response_helpers.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving shared reference enrichment and non-stream response payload shaping into lightrag/api/routers/query_response_helpers.py while keeping query_routes.py as the compatibility import surface."

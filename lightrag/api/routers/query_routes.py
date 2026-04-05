@@ -14,11 +14,21 @@ from lightrag.api.routers.query_models import (
     ReferenceItem as _ReferenceItem,
     StreamChunkResponse as _StreamChunkResponse,
 )
+from lightrag.api.routers.query_response_helpers import (
+    build_query_response_model as _build_query_response_model,
+    build_stream_complete_payload as _build_stream_complete_payload,
+    get_query_response_content as _get_query_response_content,
+    prepare_query_references as _prepare_query_references,
+)
 
 router = APIRouter(tags=["query"])
 
 ReferenceItem = _ReferenceItem
 StreamChunkResponse = _StreamChunkResponse
+prepare_query_references = _prepare_query_references
+get_query_response_content = _get_query_response_content
+build_query_response_model = _build_query_response_model
+build_stream_complete_payload = _build_stream_complete_payload
 
 def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
     combined_auth = get_combined_auth_dependency(api_key)
@@ -240,45 +250,11 @@ def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
 
             # Unified approach: always use aquery_llm for both cases
             result = await rag.aquery_llm(request.query, param=param)
-
-            # Extract LLM response and references from unified result
-            llm_response = result.get("llm_response", {})
-            data = result.get("data", {})
-            references = data.get("references", [])
-
-            # Get the non-streaming response content
-            response_content = llm_response.get("content", "")
-            if not response_content:
-                response_content = "No relevant context found for the query."
-
-            # Enrich references with chunk content if requested
-            if request.include_references and request.include_chunk_content:
-                chunks = data.get("chunks", [])
-                # Create a mapping from reference_id to chunk content
-                ref_id_to_content = {}
-                for chunk in chunks:
-                    ref_id = chunk.get("reference_id", "")
-                    content = chunk.get("content", "")
-                    if ref_id and content:
-                        # Collect chunk content; join later to avoid quadratic string concatenation
-                        ref_id_to_content.setdefault(ref_id, []).append(content)
-
-                # Add content to references
-                enriched_references = []
-                for ref in references:
-                    ref_copy = ref.copy()
-                    ref_id = ref.get("reference_id", "")
-                    if ref_id in ref_id_to_content:
-                        # Keep content as a list of chunks (one file may have multiple chunks)
-                        ref_copy["content"] = ref_id_to_content[ref_id]
-                    enriched_references.append(ref_copy)
-                references = enriched_references
-
-            # Return response with or without references based on request
-            if request.include_references:
-                return QueryResponse(response=response_content, references=references)
-            else:
-                return QueryResponse(response=response_content, references=None)
+            return build_query_response_model(
+                result,
+                include_references=request.include_references,
+                include_chunk_content=request.include_chunk_content,
+            )
         except Exception as e:
             logger.error(f"Error processing query: {str(e)}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e))
@@ -500,37 +476,17 @@ def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
             result = await rag.aquery_llm(request.query, param=param)
 
             async def stream_generator():
-                # Extract references and LLM response from unified result
-                references = result.get("data", {}).get("references", [])
+                data = result.get("data", {})
+                references = prepare_query_references(
+                    data,
+                    include_references=request.include_references,
+                    include_chunk_content=request.include_chunk_content,
+                )
                 llm_response = result.get("llm_response", {})
-
-                # Enrich references with chunk content if requested
-                if request.include_references and request.include_chunk_content:
-                    data = result.get("data", {})
-                    chunks = data.get("chunks", [])
-                    # Create a mapping from reference_id to chunk content
-                    ref_id_to_content = {}
-                    for chunk in chunks:
-                        ref_id = chunk.get("reference_id", "")
-                        content = chunk.get("content", "")
-                        if ref_id and content:
-                            # Collect chunk content
-                            ref_id_to_content.setdefault(ref_id, []).append(content)
-
-                    # Add content to references
-                    enriched_references = []
-                    for ref in references:
-                        ref_copy = ref.copy()
-                        ref_id = ref.get("reference_id", "")
-                        if ref_id in ref_id_to_content:
-                            # Keep content as a list of chunks (one file may have multiple chunks)
-                            ref_copy["content"] = ref_id_to_content[ref_id]
-                        enriched_references.append(ref_copy)
-                    references = enriched_references
 
                 if llm_response.get("is_streaming"):
                     # Streaming mode: send references first, then stream response chunks
-                    if request.include_references:
+                    if references is not None:
                         yield f"{json.dumps({'references': references})}\n"
 
                     response_stream = llm_response.get("response_iterator")
@@ -544,15 +500,10 @@ def create_query_routes(rag, api_key: Optional[str] = None, top_k: int = 60):
                             yield f"{json.dumps({'error': str(e)})}\n"
                 else:
                     # Non-streaming mode: send complete response in one message
-                    response_content = llm_response.get("content", "")
-                    if not response_content:
-                        response_content = "No relevant context found for the query."
-
-                    # Create complete response object
-                    complete_response = {"response": response_content}
-                    if request.include_references:
-                        complete_response["references"] = references
-
+                    complete_response = build_stream_complete_payload(
+                        llm_response,
+                        references,
+                    )
                     yield f"{json.dumps(complete_response)}\n"
 
             return StreamingResponse(
