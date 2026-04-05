@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "AB1 completed by extracting graph request models out of graph_routes.py, reducing the largest active router's mixed contract-and-route responsibility"
+  current_focus: "AC1 completed by extracting long-form graph route descriptions out of graph_routes.py, reducing the largest active graph router's remaining static documentation bulk"
 
 tasks:
   - id: A0
@@ -793,3 +793,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving graph entity/relation create-update and merge request models into lightrag/api/routers/graph_models.py while keeping graph_routes.py as the compatibility import surface."
+
+  - id: AC1
+    title: "Extract graph route descriptions from graph_routes.py"
+    priority: 32
+    status: completed
+    depends_on: [AB1]
+    area: "api"
+    problem_statement: "The graph API router still embeds several large long-form route descriptions inline with route registration, leaving the largest active graph router dominated by static documentation text instead of route wiring."
+    root_cause_hypothesis: "Graph route documentation kept living in handler docstrings because FastAPI can read function docs implicitly, so graph_routes.py never converged on a dedicated home for its longest route descriptions."
+    definition_of_done:
+      - "Long-form graph route descriptions live in a dedicated module"
+      - "graph_routes.py reuses the extracted description constants for route registration and re-exports them for compatibility"
+      - "Focused tests cover description constants and their attachment to the registered routes"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/graph_routes.py lightrag/api/routers/graph_route_descriptions.py tests/test_graph_route_descriptions.py"
+      - "python -m pytest tests/test_graph_route_descriptions.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/graph_routes.py"
+      - "lightrag/api/routers/graph_route_descriptions.py"
+      - "tests/test_graph_route_descriptions.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving the longest graph route descriptions into lightrag/api/routers/graph_route_descriptions.py while keeping graph_routes.py as the compatibility import surface."

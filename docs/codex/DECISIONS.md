@@ -614,3 +614,19 @@
   - `graph_routes.py` sheds a self-contained contract block and moves closer to a route-focused module.
   - Graph request model defaults and field structures now have focused regression coverage without importing the full router logic.
   - A follow-on task can target route helper extraction or long-form graph route descriptions separately from the request-contract seam.
+
+## DCR-040: AC1 moves long-form graph route descriptions behind a description seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AB1`, `lightrag/api/routers/graph_routes.py` was still the largest active graph router, and most of its remaining bulk came from long-form route descriptions for `/graphs`, `/graph/entity/edit`, `/graph/entity/create`, `/graph/relation/create`, and `/graph/entities/merge`.
+  - That text is static documentation and does not depend on route-local control flow or graph runtime state.
+  - Keeping it in handler docstrings made the router harder to scan and mixed documentation maintenance with endpoint wiring edits.
+- Decision:
+  - Introduce `lightrag/api/routers/graph_route_descriptions.py` for the longest graph route description constants.
+  - Reuse those constants through the FastAPI decorator `description=` parameter and re-export them from `lightrag/api/routers/graph_routes.py` so the router remains the compatibility surface for extracted graph documentation.
+  - Leave the shorter graph handlers and their runtime logic in `graph_routes.py` for now instead of widening this run into helper extraction.
+- Impact:
+  - `graph_routes.py` sheds its largest remaining static documentation block and moves closer to a route-wiring module.
+  - Graph route descriptions now have a dedicated home and focused regression coverage without requiring edits to graph runtime behavior.
+  - A follow-on task can target runtime helper extraction or other graph router seams instead of continuing to carry long-form docs inline.
