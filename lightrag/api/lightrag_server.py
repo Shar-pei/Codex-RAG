@@ -11,11 +11,10 @@ import sys
 import uvicorn
 from pathlib import Path
 import configparser
-from ascii_colors import ASCIIColors
-from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from lightrag._pipmaster import get_pipmaster
 from lightrag.api.app_cors import configure_cors
+from lightrag.api.app_lifespan import create_app_lifespan
 from lightrag.api.frontend_build_checker import check_frontend_build
 from lightrag.api.query_validation_handlers import (
     create_query_validation_exception_handler,
@@ -43,9 +42,6 @@ from lightrag.constants import (
 from lightrag.api.routers.document_routes import DocumentManager
 
 from lightrag.utils import logger, set_verbose_debug
-from lightrag.kg.shared_storage import (
-    finalize_share_data,
-)
 
 pm = get_pipmaster()
 
@@ -198,38 +194,6 @@ def create_app(args):
     # Initialize document manager with workspace support for data isolation
     doc_manager = DocumentManager(args.input_dir, workspace=args.workspace)
 
-    @asynccontextmanager
-    async def lifespan(app: FastAPI):
-        """Lifespan context manager for startup and shutdown events"""
-        # Store background tasks
-        app.state.background_tasks = set()
-
-        try:
-            # Initialize database connections
-            # Note: initialize_storages() now auto-initializes pipeline_status for rag.workspace
-            await rag.initialize_storages()
-
-            # Data migration regardless of storage implementation
-            await rag.check_and_migrate_data()
-
-            ASCIIColors.green("\nServer is ready to accept connections! 🚀\n")
-
-            yield
-
-        finally:
-            # Clean up database connections
-            await rag.finalize_storages()
-
-            if "LIGHTRAG_GUNICORN_MODE" not in os.environ:
-                # Only perform cleanup in Uvicorn single-process mode
-                logger.debug("Unvicorn Mode: finalizing shared storage...")
-                finalize_share_data()
-            else:
-                # In Gunicorn mode with preload_app=True, cleanup is handled by on_exit hooks
-                logger.debug(
-                    "Gunicorn Mode: postpone shared storage finalization to master process"
-                )
-
     # Initialize FastAPI
     base_description = (
         "Providing API for LightRAG core, Web UI and Ollama Model Emulation"
@@ -246,7 +210,6 @@ def create_app(args):
         "openapi_url": "/openapi.json",  # Explicitly set OpenAPI schema URL
         "docs_url": None,  # Disable default docs, we'll create custom endpoint
         "redoc_url": "/redoc",  # Explicitly set redoc URL
-        "lifespan": lifespan,
     }
 
     # Configure Swagger UI parameters
@@ -255,14 +218,6 @@ def create_app(args):
         "persistAuthorization": True,
         "tryItOutEnabled": True,
     }
-
-    app = FastAPI(**app_kwargs)
-
-    app.exception_handler(RequestValidationError)(
-        create_query_validation_exception_handler()
-    )
-
-    configure_cors(app, global_args.cors_origins)
 
     # Create working directory if it doesn't exist
     Path(args.working_dir).mkdir(parents=True, exist_ok=True)
@@ -879,6 +834,14 @@ def create_app(args):
     except Exception as e:
         logger.error(f"Failed to initialize LightRAG: {e}")
         raise
+
+    app = FastAPI(lifespan=create_app_lifespan(rag), **app_kwargs)
+
+    app.exception_handler(RequestValidationError)(
+        create_query_validation_exception_handler()
+    )
+
+    configure_cors(app, global_args.cors_origins)
 
     from lightrag.api.auth import auth_handler
 

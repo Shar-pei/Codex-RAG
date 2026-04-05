@@ -963,3 +963,19 @@
   - `lightrag_server.py` sheds another self-contained startup configuration block and moves closer to pure app construction.
   - The CORS configuration contract now has focused regression coverage for both parsing and middleware registration.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-062: AY1 moves FastAPI lifespan orchestration behind an app-lifespan helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AX1`, `lightrag/api/lightrag_server.py` still defined the FastAPI lifespan inline even though the remaining startup seam was lifecycle orchestration rather than route or config assembly.
+  - That closure mixed storage initialization, migration, ready logging, shutdown cleanup, and the Gunicorn versus Uvicorn shared-storage finalization branch in one place.
+  - The original inline closure also depended on Python's late binding over `rag`; once the lifecycle logic moved behind a helper, app construction had to keep the helper binding after `rag` was instantiated or startup would resolve `rag` too early.
+- Decision:
+  - Introduce `lightrag/api/app_lifespan.py` with `create_app_lifespan(rag)` as the authoritative FastAPI lifespan factory for startup and shutdown orchestration.
+  - Remove the inline lifecycle closure from `lightrag/api/lightrag_server.py` and instantiate `FastAPI` with the extracted lifespan helper only after `rag` has been created.
+  - Preserve the existing shared-storage cleanup branch: Uvicorn mode still finalizes shared storage in-process, while Gunicorn mode still defers that finalization to the master-process hooks.
+- Impact:
+  - `lightrag_server.py` sheds another runtime-heavy startup block and moves closer to pure app construction plus dependency wiring.
+  - The lifecycle contract now has focused regression coverage for startup, shutdown, background-task initialization, and the Gunicorn/Uvicorn cleanup branch in `tests/test_app_lifespan.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.

@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after AX1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after AY1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1384,3 +1384,31 @@ tasks:
       - "Queued after AW1 root-cause analysis showed the next narrow self-contained seam in create_app() is the CORS origin parsing and middleware registration block."
       - "Completed by introducing lightrag/api/app_cors.py for origin parsing plus middleware registration, rewiring lightrag_server.py to delegate to that helper, and preserving the existing wildcard and comma-separated origin behaviors."
       - "Focused regression coverage lives in tests/test_app_cors.py."
+
+  - id: AY1
+    title: "Extract the app lifespan from lightrag_server.py"
+    priority: 54
+    status: completed
+    depends_on: [AX1]
+    area: "api"
+    problem_statement: "The FastAPI server entrypoint still defines the application lifespan inline, so app startup owns storage initialization, migration, shutdown cleanup, and Gunicorn/Uvicorn lifecycle branching in one closure."
+    root_cause_hypothesis: "Previous extractions focused on startup helpers that were independent of runtime state, but the lifespan block stayed inside `create_app()` because it closes over `rag`, logging, and shared-storage cleanup, so the lifecycle contract never became its own helper module."
+    definition_of_done:
+      - "A dedicated helper module owns the FastAPI lifespan contract for storage init, migration, ready logging, and shutdown cleanup"
+      - "`lightrag_server.py` uses that helper instead of defining the lifespan inline"
+      - "The existing Gunicorn/Uvicorn cleanup branch remains unchanged"
+      - "Focused tests cover startup, shutdown, and the shared-storage cleanup branch behavior"
+    validation_commands:
+      - "python -m ruff check lightrag/api/app_lifespan.py lightrag/api/lightrag_server.py tests/test_app_lifespan.py"
+      - "python -m pytest tests/test_app_lifespan.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/app_lifespan.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_app_lifespan.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after AX1 root-cause analysis showed the next narrow self-contained seam in create_app() is the inline FastAPI lifespan block rather than the larger model-binding helpers."
+      - "Completed by introducing lightrag/api/app_lifespan.py for startup/shutdown orchestration, rewiring lightrag_server.py to instantiate FastAPI with that helper after `rag` is constructed, and removing the inline lifecycle closure."
+      - "Focused regression coverage lives in tests/test_app_lifespan.py."
