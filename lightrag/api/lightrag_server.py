@@ -16,18 +16,12 @@ from lightrag._pipmaster import get_pipmaster
 from lightrag.api.app_cors import configure_cors
 from lightrag.api.app_factory_config import build_app_kwargs
 from lightrag.api.app_lifespan import create_app_lifespan
-from lightrag.api.app_runtime_args import normalize_runtime_args
 from lightrag.api.app_startup_state import build_app_startup_state
-from lightrag.api.embedding_dimension_policy import apply_embedding_dimension_policy
-from lightrag.api.embedding_model_factory import build_embedding_func
-from lightrag.api.llm_config_cache import LLMConfigCache
-from lightrag.api.ollama_server_info import build_ollama_server_infos
 from lightrag.api.query_validation_handlers import (
     create_query_validation_exception_handler,
 )
+from lightrag.api.rag_runtime_dependencies import build_rag_runtime_dependencies
 from lightrag.api.rag_runtime_factory import build_rag
-from lightrag.api.rerank_model_factory import build_rerank_model_func
-from lightrag.api.runtime_model_timeouts import build_runtime_model_timeouts
 from lightrag.api.utils_api import display_splash_screen, check_env_file
 from .config import (
     global_args,
@@ -62,10 +56,7 @@ def create_app(args):
     logger.setLevel(args.log_level)
     set_verbose_debug(args.verbose)
 
-    # Create configuration cache (this will output configuration logs)
-    config_cache = LLMConfigCache(args)
-
-    normalize_runtime_args(args)
+    runtime_dependencies = build_rag_runtime_dependencies(args)
 
     app_kwargs = build_app_kwargs(
         api_key=startup_state.api_key, api_version=__api_version__
@@ -74,34 +65,14 @@ def create_app(args):
     # Create working directory if it doesn't exist
     Path(args.working_dir).mkdir(parents=True, exist_ok=True)
 
-    timeouts = build_runtime_model_timeouts()
-    llm_timeout = timeouts.llm_timeout
-    embedding_timeout = timeouts.embedding_timeout
-
-    # Create the EmbeddingFunc instance (now returns complete EmbeddingFunc with max_token_size)
-    embedding_func = build_embedding_func(
-        config_cache=config_cache,
-        binding=args.embedding_binding,
-        model=args.embedding_model,
-        host=args.embedding_binding_host,
-        api_key=args.embedding_binding_api_key,
-        args=args,
-    )
-
-    apply_embedding_dimension_policy(embedding_func, args)
-
-    rerank_model_func = build_rerank_model_func(args)
-
-    ollama_server_infos = build_ollama_server_infos(args)
-
     rag = build_rag(
         args=args,
-        config_cache=config_cache,
-        llm_timeout=llm_timeout,
-        embedding_timeout=embedding_timeout,
-        embedding_func=embedding_func,
-        rerank_model_func=rerank_model_func,
-        ollama_server_infos=ollama_server_infos,
+        config_cache=runtime_dependencies.config_cache,
+        llm_timeout=runtime_dependencies.llm_timeout,
+        embedding_timeout=runtime_dependencies.embedding_timeout,
+        embedding_func=runtime_dependencies.embedding_func,
+        rerank_model_func=runtime_dependencies.rerank_model_func,
+        ollama_server_infos=runtime_dependencies.ollama_server_infos,
     )
 
     app = FastAPI(lifespan=create_app_lifespan(rag), **app_kwargs)
@@ -118,7 +89,7 @@ def create_app(args):
             rag=rag,
             startup_state=startup_state,
             args=args,
-            rerank_enabled=rerank_model_func is not None,
+            rerank_enabled=runtime_dependencies.rerank_model_func is not None,
         ),
     )
 

@@ -1235,3 +1235,19 @@
   - `lightrag_server.py` sheds another runtime-construction responsibility and moves incrementally closer to pure app assembly plus orchestration.
   - The extracted seam now has focused regression coverage for kwargs forwarding and failure logging in `tests/test_rag_runtime_factory.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-079: BP1 moves pre-RAG dependency bundle assembly behind a helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BO1`, `lightrag/api/lightrag_server.py` no longer instantiated `LightRAG` inline, but it still assembled the full dependency bundle passed into `build_rag(...)`.
+  - That block already had an internal execution contract: create the `LLMConfigCache`, normalize runtime args, load timeouts, build the embedding function, apply the embedding dimension policy, then build rerank and Ollama metadata helpers.
+  - Keeping that sequence in `create_app()` left the app-factory module responsible for orchestrating one more runtime dependency pipeline even though each individual dependency builder had already been extracted.
+- Decision:
+  - Introduce `lightrag/api/rag_runtime_dependencies.py` with `build_rag_runtime_dependencies(args)` as the authoritative helper for assembling the dependency bundle consumed by `build_rag(...)`.
+  - Rewire `lightrag/api/lightrag_server.py` to consume that bundle helper instead of orchestrating config-cache creation, timeout loading, embedding assembly, dimension policy application, rerank setup, and Ollama metadata inline.
+  - Preserve the existing dependency ordering and runtime-factory inputs without widening this run into the remaining runtime-bootstrap block.
+- Impact:
+  - `lightrag_server.py` sheds another orchestration-heavy runtime assembly block and moves incrementally closer to pure app assembly.
+  - The extracted seam now has focused regression coverage for bundle assembly ordering and helper-call forwarding in `tests/test_rag_runtime_dependencies.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.

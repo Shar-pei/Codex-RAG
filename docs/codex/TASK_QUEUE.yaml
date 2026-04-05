@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "BP1 is now the highest-priority pending task: extract the pre-RAG dependency bundle assembly from `lightrag_server.py` after BO1 made runtime construction a dedicated factory seam"
+  current_focus: "BQ1 is now the highest-priority pending task: extract the remaining RAG runtime bootstrap from `lightrag_server.py` after BP1 moved pre-RAG dependency assembly behind a dedicated helper"
 
 tasks:
   - id: A0
@@ -1864,7 +1864,7 @@ tasks:
   - id: BP1
     title: "Extract pre-RAG dependency bundle assembly from lightrag_server.py"
     priority: 71
-    status: pending
+    status: completed
     depends_on: [BO1]
     area: "api"
     problem_statement: "After `BO1`, the FastAPI server entrypoint still assembles the pre-RAG dependency bundle inline by building `LLMConfigCache`, timeouts, `EmbeddingFunc`, rerank callable, and Ollama server metadata before handing them into the runtime factory."
@@ -1886,3 +1886,31 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Queued after BO1 root-cause analysis showed the remaining runtime hotspot in `create_app()` is the pre-RAG dependency bundle assembly rather than the now-extracted LightRAG constructor call."
+      - "Completed by introducing `lightrag/api/rag_runtime_dependencies.py` for pre-RAG dependency bundle assembly and rewiring `lightrag_server.py` to consume that helper."
+      - "Focused regression coverage lives in `tests/test_rag_runtime_dependencies.py`."
+
+  - id: BQ1
+    title: "Extract RAG runtime bootstrap from lightrag_server.py"
+    priority: 72
+    status: pending
+    depends_on: [BP1]
+    area: "api"
+    problem_statement: "After `BP1`, the FastAPI server entrypoint still prepares the working directory, calls `build_rag(...)`, and derives rerank-enabled route context inline, so app construction still owns one remaining RAG runtime bootstrap block."
+    root_cause_hypothesis: "Previous extractions isolated dependency assembly and LightRAG construction, but `create_app()` still coordinates the last runtime bootstrap steps itself because working-directory preparation, runtime-factory invocation, and rerank-enabled derivation were never grouped behind one helper."
+    definition_of_done:
+      - "A dedicated helper module owns the remaining RAG runtime bootstrap consumed by `create_app()`"
+      - "`lightrag_server.py` uses that helper instead of coordinating working-directory preparation and `build_rag(...)` inline"
+      - "The existing working-directory creation, runtime-factory inputs, and rerank-enabled behavior remain unchanged"
+      - "Focused tests cover representative runtime-bootstrap forwarding and rerank-enabled state"
+    validation_commands:
+      - "python -m ruff check lightrag/api/rag_app_runtime.py lightrag/api/lightrag_server.py tests/test_rag_app_runtime.py"
+      - "python -m pytest tests/test_rag_app_runtime.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/rag_app_runtime.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_rag_app_runtime.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BP1 root-cause analysis showed the remaining runtime hotspot in `create_app()` is the last RAG runtime bootstrap block rather than the already-extracted dependency assembly."
