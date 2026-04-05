@@ -1363,3 +1363,19 @@
   - `lightrag_server.py` sheds another operational bootstrap seam and moves incrementally closer to a thin entrypoint.
   - The extracted seam now has focused regression coverage for installed-package skipping and missing-package install ordering in `tests/test_dependency_bootstrap.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-087: BX1 moves import-time runtime bootstrap behind a helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BW1`, `lightrag/api/lightrag_server.py` had become mostly a facade, but it still owned the import-time `.env` loading and `config.ini` parser bootstrap side effects inline.
+  - Those side effects already formed one narrow runtime-bootstrap contract: load the local `.env` file without overriding process env vars, create a config parser, and read `config.ini`.
+  - Keeping them embedded in `lightrag_server.py` left the entrypoint module with one more boot-time side-effect block even after the other runtime seams had been extracted.
+- Decision:
+  - Introduce `lightrag/api/runtime_bootstrap.py` with `bootstrap_runtime_environment(...)` as the authoritative helper for `.env` loading and `config.ini` parser bootstrap.
+  - Rewire `lightrag/api/lightrag_server.py` so the module-level `config` bootstrap delegates to that helper instead of inlining the side effects.
+  - Preserve the existing `.env` override behavior and `config.ini` read path without widening this run into the remaining thin facade bindings in `lightrag_server.py`.
+- Impact:
+  - `lightrag_server.py` sheds another import-time bootstrap seam and moves incrementally closer to a minimal entrypoint facade.
+  - The extracted seam now has focused regression coverage for dotenv/bootstrap forwarding in `tests/test_runtime_bootstrap.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.

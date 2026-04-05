@@ -4,13 +4,12 @@ LightRAG FastAPI Server
 
 import os
 import logging
-import configparser
-from dotenv import load_dotenv
 from lightrag._pipmaster import get_pipmaster
 from lightrag.api.app_composition import build_app_composition
 from lightrag.api.dependency_bootstrap import ensure_required_packages
 from lightrag.api.logging_setup import configure_server_logging
 from lightrag.api.process_entrypoint import run_process_entrypoint
+from lightrag.api.runtime_bootstrap import bootstrap_runtime_environment
 from lightrag.api.server_startup import run_server_startup
 from lightrag.api.utils_api import display_splash_screen, check_env_file
 from .config import (
@@ -28,15 +27,7 @@ from lightrag.constants import (
 
 pm = get_pipmaster()
 
-# use the .env that is inside the current folder
-# allows to use different .env file for each lightrag instance
-# the OS environment variables take precedence over the .env file
-load_dotenv(dotenv_path=".env", override=False)
-
-
-# Initialize config parser
-config = configparser.ConfigParser()
-config.read("config.ini")
+config = bootstrap_runtime_environment()
 
 
 def create_app(args):
