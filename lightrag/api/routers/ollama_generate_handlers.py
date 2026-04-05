@@ -6,6 +6,7 @@ import time
 
 from lightrag.api.routers.ollama_request_helpers import estimate_tokens
 from lightrag.api.routers.ollama_stream_payloads import (
+    build_generate_chunk_payload,
     build_generate_done_payload,
     build_generate_error_payload,
     normalize_stream_error,
@@ -73,12 +74,7 @@ async def iter_generate_stream_payloads(response, server_infos, prompt_tokens, s
         last_chunk_time = time.time_ns()
         total_response = response
 
-        data = {
-            "model": server_infos.LIGHTRAG_MODEL,
-            "created_at": server_infos.LIGHTRAG_CREATED_AT,
-            "response": response,
-            "done": False,
-        }
+        data = build_generate_chunk_payload(server_infos, response)
         yield f"{json.dumps(data, ensure_ascii=False)}\n"
 
         data = build_generate_done_payload(
@@ -100,12 +96,7 @@ async def iter_generate_stream_payloads(response, server_infos, prompt_tokens, s
 
                 last_chunk_time = time.time_ns()
                 total_response += chunk
-                data = {
-                    "model": server_infos.LIGHTRAG_MODEL,
-                    "created_at": server_infos.LIGHTRAG_CREATED_AT,
-                    "response": chunk,
-                    "done": False,
-                }
+                data = build_generate_chunk_payload(server_infos, chunk)
                 yield f"{json.dumps(data, ensure_ascii=False)}\n"
     except (asyncio.CancelledError, Exception) as exc:
         error_msg = normalize_stream_error(exc)

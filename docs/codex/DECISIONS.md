@@ -803,3 +803,19 @@
   - Ollama terminal stream behavior now has one authoritative seam for completion metrics and error payload conventions.
   - Focused tests now lock the shared terminal payload-builder contract and confirm the iterators delegate to it.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-052: AO1 centralizes non-terminal Ollama stream chunk payload shaping
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AN1`, the only remaining duplication inside `lightrag/api/routers/ollama_generate_handlers.py` and `lightrag/api/routers/ollama_chat_handlers.py` was the non-terminal chunk payload block.
+  - That duplication appeared twice per iterator: once for the string-response shortcut path and once inside the normal async chunk loop.
+  - The generate and chat payloads differ only at the content field (`response` vs `message.content`), while the model metadata and `done=False` wrapper are shared.
+- Decision:
+  - Extend `lightrag/api/routers/ollama_stream_payloads.py` with shared non-terminal chunk payload builders plus one private base helper for the common wrapper fields.
+  - Reuse those builders from both the string-response and async-stream paths in the generate and chat iterators.
+  - Keep the endpoint-specific field shapes (`response` for generate, `message` for chat) behind thin wrappers instead of widening this run into a generic schema abstraction.
+- Impact:
+  - Ollama non-terminal stream behavior now has one authoritative seam for shared chunk metadata and `done=False` framing.
+  - Focused tests now lock both the shared builder contract and iterator delegation at the touched seam.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.

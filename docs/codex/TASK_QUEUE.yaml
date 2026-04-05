@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "AO1 pending after AN1: extract shared Ollama stream chunk payload builders to remove duplicated per-chunk payload shaping across generate and chat iterators"
+  current_focus: "Queue clear after AO1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1101,7 +1101,7 @@ tasks:
   - id: AO1
     title: "Extract shared Ollama stream chunk payload builders"
     priority: 44
-    status: pending
+    status: completed
     depends_on: [AN1]
     area: "api"
     problem_statement: "The Ollama generate and chat stream iterators still duplicate the per-chunk payload shaping for normal streaming tokens and for the initial string-response chunk path."
@@ -1123,3 +1123,5 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Queued from AN1 follow-up analysis after the terminal payload seam was centralized but both iterators still duplicated their non-terminal chunk payload assembly."
+      - "Completed by introducing shared non-terminal chunk payload builders in lightrag/api/routers/ollama_stream_payloads.py and reusing them from both the string-response and async-stream paths in the generate/chat iterators."
+      - "Focused regression coverage lives in tests/test_ollama_stream_payloads.py."

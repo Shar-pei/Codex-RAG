@@ -34,6 +34,34 @@ def _server_infos():
     )
 
 
+def test_build_generate_chunk_payload_keeps_shared_non_terminal_shape():
+    payload = ollama_stream_payloads.build_generate_chunk_payload(
+        _server_infos(), "hello"
+    )
+
+    assert payload == {
+        "model": "demo-model",
+        "created_at": "2026-04-05T00:00:00Z",
+        "response": "hello",
+        "done": False,
+    }
+
+
+def test_build_chat_chunk_payload_keeps_shared_non_terminal_shape():
+    payload = ollama_stream_payloads.build_chat_chunk_payload(_server_infos(), "hello")
+
+    assert payload == {
+        "model": "demo-model",
+        "created_at": "2026-04-05T00:00:00Z",
+        "message": {
+            "role": "assistant",
+            "content": "hello",
+            "images": None,
+        },
+        "done": False,
+    }
+
+
 def test_build_generate_done_payload_keeps_shared_metrics_contract():
     payload = ollama_stream_payloads.build_generate_done_payload(
         server_infos=_server_infos(),
@@ -64,6 +92,41 @@ def test_build_chat_error_payload_keeps_terminal_error_shape():
     assert final_payload["done"] is True
 
 
+def test_iter_generate_stream_payloads_uses_shared_chunk_builder_for_string_response():
+    async def collect_lines():
+        lines = []
+        async for line in ollama_generate_handlers.iter_generate_stream_payloads(
+            response="hello world",
+            server_infos=_server_infos(),
+            prompt_tokens=1,
+            start_time=0,
+        ):
+            lines.append(line)
+        return lines
+
+    original = ollama_generate_handlers.build_generate_chunk_payload
+    calls = []
+
+    def fake_build(server_infos, content):
+        calls.append((server_infos, content))
+        return {
+            "model": "demo-model",
+            "created_at": "2026-04-05T00:00:00Z",
+            "response": "patched",
+            "done": False,
+        }
+
+    ollama_generate_handlers.build_generate_chunk_payload = fake_build
+    try:
+        lines = asyncio.run(collect_lines())
+    finally:
+        ollama_generate_handlers.build_generate_chunk_payload = original
+
+    assert len(calls) == 1
+    assert calls[0][1] == "hello world"
+    assert json.loads(lines[0])["response"] == "patched"
+
+
 def test_iter_generate_stream_payloads_uses_shared_done_builder():
     async def collect_lines():
         lines = []
@@ -91,6 +154,51 @@ def test_iter_generate_stream_payloads_uses_shared_done_builder():
 
     assert len(calls) == 1
     assert json.loads(lines[1])["done"] is True
+
+
+def test_iter_chat_stream_payloads_uses_shared_chunk_builder_for_async_chunks():
+    async def chunk_stream():
+        yield "hello"
+        yield ""
+        yield " world"
+
+    async def collect_lines():
+        lines = []
+        async for line in ollama_chat_handlers.iter_chat_stream_payloads(
+            response=chunk_stream(),
+            server_infos=_server_infos(),
+            prompt_tokens=1,
+            start_time=0,
+        ):
+            lines.append(line)
+        return lines
+
+    original = ollama_chat_handlers.build_chat_chunk_payload
+    calls = []
+
+    def fake_build(server_infos, content):
+        calls.append((server_infos, content))
+        return {
+            "model": "demo-model",
+            "created_at": "2026-04-05T00:00:00Z",
+            "message": {
+                "role": "assistant",
+                "content": content.upper(),
+                "images": None,
+            },
+            "done": False,
+        }
+
+    ollama_chat_handlers.build_chat_chunk_payload = fake_build
+    try:
+        lines = asyncio.run(collect_lines())
+    finally:
+        ollama_chat_handlers.build_chat_chunk_payload = original
+
+    assert [content for _, content in calls] == ["hello", " world"]
+    payloads = [json.loads(line) for line in lines]
+    assert payloads[0]["message"]["content"] == "HELLO"
+    assert payloads[1]["message"]["content"] == " WORLD"
 
 
 def test_iter_chat_stream_payloads_uses_shared_error_builder():

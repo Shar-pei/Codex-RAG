@@ -11,6 +11,26 @@ def normalize_stream_error(exc: Exception) -> str:
     return f"Provider error: {str(exc)}"
 
 
+def build_generate_chunk_payload(server_infos, content: str) -> dict:
+    return _build_stream_chunk_payload(
+        server_infos,
+        {"response": content},
+    )
+
+
+def build_chat_chunk_payload(server_infos, content: str) -> dict:
+    return _build_stream_chunk_payload(
+        server_infos,
+        {
+            "message": {
+                "role": "assistant",
+                "content": content,
+                "images": None,
+            }
+        },
+    )
+
+
 def build_generate_done_payload(
     server_infos,
     total_response: str,
@@ -132,4 +152,13 @@ def _build_stream_metrics(
         "prompt_eval_duration": prompt_eval_time,
         "eval_count": completion_tokens,
         "eval_duration": eval_time,
+    }
+
+
+def _build_stream_chunk_payload(server_infos, body: dict) -> dict:
+    return {
+        "model": server_infos.LIGHTRAG_MODEL,
+        "created_at": server_infos.LIGHTRAG_CREATED_AT,
+        **body,
+        "done": False,
     }

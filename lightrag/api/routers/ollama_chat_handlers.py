@@ -14,6 +14,7 @@ from lightrag.api.routers.ollama_request_helpers import (
     parse_query_mode,
 )
 from lightrag.api.routers.ollama_stream_payloads import (
+    build_chat_chunk_payload,
     build_chat_done_payload,
     build_chat_error_payload,
     normalize_stream_error,
@@ -118,16 +119,7 @@ async def iter_chat_stream_payloads(response, server_infos, prompt_tokens, start
         last_chunk_time = time.time_ns()
         total_response = response
 
-        data = {
-            "model": server_infos.LIGHTRAG_MODEL,
-            "created_at": server_infos.LIGHTRAG_CREATED_AT,
-            "message": {
-                "role": "assistant",
-                "content": response,
-                "images": None,
-            },
-            "done": False,
-        }
+        data = build_chat_chunk_payload(server_infos, response)
         yield f"{json.dumps(data, ensure_ascii=False)}\n"
 
         data = build_chat_done_payload(
@@ -149,16 +141,7 @@ async def iter_chat_stream_payloads(response, server_infos, prompt_tokens, start
 
                 last_chunk_time = time.time_ns()
                 total_response += chunk
-                data = {
-                    "model": server_infos.LIGHTRAG_MODEL,
-                    "created_at": server_infos.LIGHTRAG_CREATED_AT,
-                    "message": {
-                        "role": "assistant",
-                        "content": chunk,
-                        "images": None,
-                    },
-                    "done": False,
-                }
+                data = build_chat_chunk_payload(server_infos, chunk)
                 yield f"{json.dumps(data, ensure_ascii=False)}\n"
     except (asyncio.CancelledError, Exception) as exc:
         error_msg = normalize_stream_error(exc)
