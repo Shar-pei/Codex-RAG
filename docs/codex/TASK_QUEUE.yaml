@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "K1 completed by extracting DocumentManager and file-path helpers out of document_routes.py, leaving the document API router with a narrower routing-and-pipeline responsibility"
+  current_focus: "L1 completed by extracting document content extraction helpers out of document_routes.py, leaving the document API router with a narrower routing-and-pipeline responsibility"
 
 tasks:
   - id: A0
@@ -367,3 +367,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving DocumentManager, filename sanitization, deletion path validation, and enqueued-file naming into lightrag/api/routers/document_manager.py while keeping document_routes.py as the compatibility import surface."
+
+  - id: L1
+    title: "Extract document content extraction helpers from document_routes.py"
+    priority: 15
+    status: completed
+    depends_on: [K1]
+    area: "api"
+    problem_statement: "The document API router still owns docling availability checks and PDF/DOCX/PPTX/XLSX content extraction helpers alongside queue orchestration and route handlers."
+    root_cause_hypothesis: "Document ingestion support kept accumulating in document_routes.py because file-format extraction logic lived next to the enqueue pipeline that called it, even though the extraction code does not depend on route state."
+    definition_of_done:
+      - "Document format extraction helpers live in a dedicated module"
+      - "document_routes.py preserves the existing import surface by reusing the extracted extraction seam"
+      - "Focused tests cover the extracted escape helpers and compatibility import path"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/document_routes.py lightrag/api/routers/document_content_extraction.py tests/test_document_content_extraction.py"
+      - "python -m pytest tests/test_document_content_extraction.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/document_routes.py"
+      - "lightrag/api/routers/document_content_extraction.py"
+      - "tests/test_document_content_extraction.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving docling availability checks plus PDF, DOCX, PPTX, and XLSX content extraction helpers into lightrag/api/routers/document_content_extraction.py while keeping document_routes.py as the compatibility import surface."

@@ -4,14 +4,12 @@ This module contains all document-related routes for the LightRAG API.
 
 import asyncio
 from datetime import datetime
-from functools import lru_cache
 from lightrag.utils import logger, get_pinyin_sort_key
 import aiofiles
 import shutil
 import traceback
 from pathlib import Path
 from typing import Dict, List, Optional
-from io import BytesIO
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -23,6 +21,14 @@ from fastapi import (
 
 from lightrag import LightRAG
 from lightrag.base import DeletionResult, DocProcessingStatus, DocStatus
+from lightrag.api.routers.document_content_extraction import (
+    _convert_with_docling,
+    _extract_docx,
+    _extract_pdf_pypdf,
+    _extract_pptx,
+    _extract_xlsx,
+    _is_docling_available,
+)
 from lightrag.api.routers.document_manager import (
     DocumentManager,
     get_unique_filename_in_enqueued,
@@ -60,24 +66,6 @@ from lightrag.api.routers.document_status_models import (
 from ..config import global_args
 
 
-@lru_cache(maxsize=1)
-def _is_docling_available() -> bool:
-    """Check if docling is available (cached check).
-
-    This function uses lru_cache to avoid repeated import attempts.
-    The result is cached after the first call.
-
-    Returns:
-        bool: True if docling is available, False otherwise
-    """
-    try:
-        import docling  # noqa: F401  # type: ignore[import-not-found]
-
-        return True
-    except ImportError:
-        return False
-
-
 router = APIRouter(
     prefix="/documents",
     tags=["documents"],
@@ -85,270 +73,6 @@ router = APIRouter(
 
 # Temporary file prefix
 temp_prefix = "__tmp__"
-
-
-# Document processing helper functions (synchronous)
-# These functions run in thread pool via asyncio.to_thread() to avoid blocking the event loop
-
-
-def _convert_with_docling(file_path: Path) -> str:
-    """Convert document using docling (synchronous).
-
-    Args:
-        file_path: Path to the document file
-
-    Returns:
-        str: Extracted markdown content
-    """
-    from docling.document_converter import DocumentConverter  # type: ignore
-
-    converter = DocumentConverter()
-    result = converter.convert(file_path)
-    return result.document.export_to_markdown()
-
-
-def _extract_pdf_pypdf(file_bytes: bytes, password: str = None) -> str:
-    """Extract PDF content using pypdf (synchronous).
-
-    Args:
-        file_bytes: PDF file content as bytes
-        password: Optional password for encrypted PDFs
-
-    Returns:
-        str: Extracted text content
-
-    Raises:
-        Exception: If PDF is encrypted and password is incorrect or missing
-    """
-    from pypdf import PdfReader  # type: ignore
-
-    pdf_file = BytesIO(file_bytes)
-    reader = PdfReader(pdf_file)
-
-    # Check if PDF is encrypted
-    if reader.is_encrypted:
-        if not password:
-            raise Exception("PDF is encrypted but no password provided")
-
-        decrypt_result = reader.decrypt(password)
-        if decrypt_result == 0:
-            raise Exception("Incorrect PDF password")
-
-    # Extract text from all pages
-    content = ""
-    for page in reader.pages:
-        content += page.extract_text() + "\n"
-
-    return content
-
-
-def _extract_docx(file_bytes: bytes) -> str:
-    """Extract DOCX content including tables in document order (synchronous).
-
-    Args:
-        file_bytes: DOCX file content as bytes
-
-    Returns:
-        str: Extracted text content with tables in their original positions.
-             Tables are separated from paragraphs with blank lines for clarity.
-    """
-    from docx import Document  # type: ignore
-    from docx.table import Table  # type: ignore
-    from docx.text.paragraph import Paragraph  # type: ignore
-
-    docx_file = BytesIO(file_bytes)
-    doc = Document(docx_file)
-
-    def escape_cell(cell_value: str | None) -> str:
-        """Escape characters that would break tab-delimited layout.
-
-        Escape order is critical: backslashes first, then tabs/newlines.
-        This prevents double-escaping issues.
-
-        Args:
-            cell_value: The cell value to escape (can be None or str)
-
-        Returns:
-            str: Escaped cell value safe for tab-delimited format
-        """
-        if cell_value is None:
-            return ""
-        text = str(cell_value)
-        # CRITICAL: Escape backslash first to avoid double-escaping
-        return (
-            text.replace("\\", "\\\\")  # Must be first: \ -> \\
-            .replace("\t", "\\t")  # Tab -> \t (visible)
-            .replace("\r\n", "\\n")  # Windows newline -> \n
-            .replace("\r", "\\n")  # Mac newline -> \n
-            .replace("\n", "\\n")  # Unix newline -> \n
-        )
-
-    content_parts = []
-    in_table = False  # Track if we're currently processing a table
-
-    # Iterate through all body elements in document order
-    for element in doc.element.body:
-        # Check if element is a paragraph
-        if element.tag.endswith("p"):
-            # If coming out of a table, add blank line after table
-            if in_table:
-                content_parts.append("")  # Blank line after table
-                in_table = False
-
-            paragraph = Paragraph(element, doc)
-            text = paragraph.text
-            # Always append to preserve document spacing (including blank paragraphs)
-            content_parts.append(text)
-
-        # Check if element is a table
-        elif element.tag.endswith("tbl"):
-            # Add blank line before table (if content exists)
-            if content_parts and not in_table:
-                content_parts.append("")  # Blank line before table
-
-            in_table = True
-            table = Table(element, doc)
-            for row in table.rows:
-                row_text = []
-                for cell in row.cells:
-                    cell_text = cell.text
-                    # Escape special characters to preserve tab-delimited structure
-                    row_text.append(escape_cell(cell_text))
-                # Only add row if at least one cell has content
-                if any(cell for cell in row_text):
-                    content_parts.append("\t".join(row_text))
-
-    return "\n".join(content_parts)
-
-
-def _extract_pptx(file_bytes: bytes) -> str:
-    """Extract PPTX content (synchronous).
-
-    Args:
-        file_bytes: PPTX file content as bytes
-
-    Returns:
-        str: Extracted text content
-    """
-    from pptx import Presentation  # type: ignore
-
-    pptx_file = BytesIO(file_bytes)
-    prs = Presentation(pptx_file)
-    content = ""
-    for slide in prs.slides:
-        for shape in slide.shapes:
-            if hasattr(shape, "text"):
-                content += shape.text + "\n"
-    return content
-
-
-def _extract_xlsx(file_bytes: bytes) -> str:
-    """Extract XLSX content in tab-delimited format with clear sheet separation.
-
-    This function processes Excel workbooks and converts them to a structured text format
-    suitable for LLM prompts and RAG systems. Each sheet is clearly delimited with
-    separator lines, and special characters are escaped to preserve the tab-delimited structure.
-
-    Features:
-    - Each sheet is wrapped with '====================' separators for visual distinction
-    - Special characters (tabs, newlines, backslashes) are escaped to prevent structure corruption
-    - Column alignment is preserved across all rows to maintain tabular structure
-    - Empty rows are preserved as blank lines to maintain row structure
-    - Uses sheet.max_column to determine column width efficiently
-
-    Args:
-        file_bytes: XLSX file content as bytes
-
-    Returns:
-        str: Extracted text content with all sheets in tab-delimited format.
-             Format: Sheet separators, sheet name, then tab-delimited rows.
-
-    Example output:
-        ==================== Sheet: Data ====================
-        Name\tAge\tCity
-        Alice\t30\tNew York
-        Bob\t25\tLondon
-
-        ==================== Sheet: Summary ====================
-        Total\t2
-        ====================
-    """
-    from openpyxl import load_workbook  # type: ignore
-
-    xlsx_file = BytesIO(file_bytes)
-    wb = load_workbook(xlsx_file)
-
-    def escape_cell(cell_value: str | int | float | None) -> str:
-        """Escape characters that would break tab-delimited layout.
-
-        Escape order is critical: backslashes first, then tabs/newlines.
-        This prevents double-escaping issues.
-
-        Args:
-            cell_value: The cell value to escape (can be None, str, int, or float)
-
-        Returns:
-            str: Escaped cell value safe for tab-delimited format
-        """
-        if cell_value is None:
-            return ""
-        text = str(cell_value)
-        # CRITICAL: Escape backslash first to avoid double-escaping
-        return (
-            text.replace("\\", "\\\\")  # Must be first: \ -> \\
-            .replace("\t", "\\t")  # Tab -> \t (visible)
-            .replace("\r\n", "\\n")  # Windows newline -> \n
-            .replace("\r", "\\n")  # Mac newline -> \n
-            .replace("\n", "\\n")  # Unix newline -> \n
-        )
-
-    def escape_sheet_title(title: str) -> str:
-        """Escape sheet title to prevent formatting issues in separators.
-
-        Args:
-            title: Original sheet title
-
-        Returns:
-            str: Sanitized sheet title with tabs/newlines replaced
-        """
-        return str(title).replace("\n", " ").replace("\t", " ").replace("\r", " ")
-
-    content_parts: list[str] = []
-    sheet_separator = "=" * 20
-
-    for idx, sheet in enumerate(wb):
-        if idx > 0:
-            content_parts.append("")  # Blank line between sheets for readability
-
-        # Escape sheet title to handle edge cases with special characters
-        safe_title = escape_sheet_title(sheet.title)
-        content_parts.append(f"{sheet_separator} Sheet: {safe_title} {sheet_separator}")
-
-        # Use sheet.max_column to get the maximum column width directly
-        max_columns = sheet.max_column if sheet.max_column else 0
-
-        # Extract rows with consistent width to preserve column alignment
-        for row in sheet.iter_rows(values_only=True):
-            row_parts = []
-
-            # Build row up to max_columns width
-            for idx in range(max_columns):
-                if idx < len(row):
-                    row_parts.append(escape_cell(row[idx]))
-                else:
-                    row_parts.append("")  # Pad short rows
-
-            # Check if row is completely empty
-            if all(part == "" for part in row_parts):
-                # Preserve empty rows as blank lines (maintains row structure)
-                content_parts.append("")
-            else:
-                # Join all columns to maintain consistent column count
-                content_parts.append("\t".join(row_parts))
-
-    # Final separator for symmetry (makes parsing easier)
-    content_parts.append(sheet_separator)
-    return "\n".join(content_parts)
 
 
 async def pipeline_enqueue_file(

@@ -345,3 +345,19 @@
   - `document_routes.py` now starts closer to route and pipeline behavior rather than path-safety and directory-management primitives.
   - The document API now has a clearer ingestion-support seam that can be tested directly without importing the full routing module.
   - Focused tests now lock workspace-scoped input directories, supported-file scanning, path sanitization, and the compatibility re-export path.
+
+## DCR-023: L1 moves document content extraction behind a file-format seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `K1`, `lightrag/api/routers/document_routes.py` still began with a long block of file-format extraction helpers before the enqueue pipeline functions.
+  - `_is_docling_available()`, `_convert_with_docling()`, `_extract_pdf_pypdf()`, `_extract_docx()`, `_extract_pptx()`, and `_extract_xlsx()` depend on file bytes, optional provider libraries, and text-formatting rules, but they do not depend on FastAPI route state.
+  - Keeping those helpers inline would leave `document_routes.py` responsible for three separate support seams even after schema and document-manager extraction.
+- Decision:
+  - Introduce `lightrag/api/routers/document_content_extraction.py` for docling availability checks and the PDF/DOCX/PPTX/XLSX extraction helpers.
+  - Keep the tabular escaping logic as explicit helper functions inside that new module so extraction-specific formatting rules can be tested directly.
+  - Import the extracted helpers back into `lightrag/api/routers/document_routes.py` so existing imports from `document_routes` continue to work.
+- Impact:
+  - `document_routes.py` now starts closer to queue orchestration and route behavior instead of file-format parsing details.
+  - Document content extraction rules now have a dedicated module and direct regression tests for their text-escaping behavior.
+  - Follow-on cleanup can target enqueue/pipeline orchestration separately from file-format conversion logic.
