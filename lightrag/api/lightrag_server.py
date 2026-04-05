@@ -4,14 +4,13 @@ LightRAG FastAPI Server
 
 import os
 import logging
-from lightrag._pipmaster import get_pipmaster
+from lightrag.api import entrypoint_bootstrap_state
 from lightrag.api.entrypoint_facade import (
     check_dependencies_with_bindings,
     configure_logging_with_bindings,
     create_app_with_bindings,
     run_main_with_bindings,
 )
-from lightrag.api.runtime_bootstrap import bootstrap_runtime_environment
 from lightrag.api.server_startup import run_server_startup
 from lightrag.api.utils_api import display_splash_screen, check_env_file
 from .config import (
@@ -27,9 +26,8 @@ from lightrag.constants import (
 )
 
 
-pm = get_pipmaster()
-
-config = bootstrap_runtime_environment()
+pm = entrypoint_bootstrap_state.pm
+config = entrypoint_bootstrap_state.config
 
 
 def create_app(args):

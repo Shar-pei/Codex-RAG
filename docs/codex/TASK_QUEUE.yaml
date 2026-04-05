@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "BZ1 is now the highest-priority pending task: extract remaining module-level bootstrap globals from `lightrag_server.py` after BY1 moved thin entrypoint delegate bindings behind a facade"
+  current_focus: "CA1 is now the highest-priority pending task: extract the remaining compatibility wrapper exports from `lightrag_server.py` after BZ1 moved the last module-level bootstrap globals behind a state helper"
 
 tasks:
   - id: A0
@@ -2144,7 +2144,7 @@ tasks:
   - id: BZ1
     title: "Extract module-level bootstrap globals from lightrag_server.py"
     priority: 81
-    status: pending
+    status: completed
     depends_on: [BY1]
     area: "api"
     problem_statement: "After `BY1`, `lightrag_server.py` is almost entirely a facade, but it still owns the remaining module-level bootstrap globals inline: `pm = get_pipmaster()` and `config = bootstrap_runtime_environment()`."
@@ -2166,3 +2166,31 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Queued after BY1 root-cause analysis showed the remaining hotspot in `lightrag_server.py` is the last module-level bootstrap globals rather than the already-extracted facade bindings."
+      - "Completed by introducing `lightrag/api/entrypoint_bootstrap_state.py` for import-time package-manager and runtime-config bootstrap state, then rewiring `lightrag_server.py` to consume that module-level state."
+      - "Focused regression coverage lives in `tests/test_entrypoint_bootstrap_state.py`."
+
+  - id: CA1
+    title: "Extract remaining compatibility wrapper exports from lightrag_server.py"
+    priority: 82
+    status: pending
+    depends_on: [BZ1]
+    area: "api"
+    problem_statement: "After `BZ1`, `lightrag_server.py` no longer owns behavior or bootstrap state, but it still defines the remaining compatibility wrapper exports inline: `create_app()`, `get_application()`, `configure_logging()`, `check_and_install_dependencies()`, and `main()`."
+    root_cause_hypothesis: "Previous tasks extracted runtime behavior, thin bindings, and module-level bootstrap state, but the compatibility export layer itself was never grouped behind a dedicated helper, so the entrypoint module still defines wrapper functions inline instead of re-exporting them."
+    definition_of_done:
+      - "A dedicated helper module owns the remaining compatibility wrapper exports used by the API entrypoint"
+      - "`lightrag_server.py` re-exports or delegates those wrapper exports instead of defining each one inline"
+      - "The existing `global_args` defaulting, startup wiring, and public entrypoint names remain unchanged"
+      - "Focused tests cover representative wrapper forwarding and the default `get_application()` behavior"
+    validation_commands:
+      - "python -m ruff check lightrag/api/entrypoint_exports.py lightrag/api/lightrag_server.py tests/test_entrypoint_exports.py"
+      - "python -m pytest tests/test_entrypoint_exports.py -q"
+    risk_level: "low"
+    expected_files:
+      - "lightrag/api/entrypoint_exports.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_entrypoint_exports.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BZ1 root-cause analysis showed the remaining hotspot in `lightrag_server.py` is the last inline compatibility wrapper layer rather than any runtime or bootstrap behavior."

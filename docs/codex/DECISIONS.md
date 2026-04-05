@@ -1395,3 +1395,19 @@
   - `lightrag_server.py` sheds the remaining thin binding layer and moves incrementally closer to a pure re-exporting entrypoint facade.
   - The extracted seam now has focused regression coverage for facade binding and helper-call forwarding in `tests/test_entrypoint_facade.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-089: BZ1 moves the remaining module-level bootstrap globals behind a state helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BY1`, `lightrag/api/lightrag_server.py` had become almost entirely a facade, but it still constructed the last import-time bootstrap globals inline: `pm = get_pipmaster()` and `config = bootstrap_runtime_environment()`.
+  - Those globals no longer represented entrypoint-owned behavior, but they still kept the compatibility module responsible for creating runtime state during import.
+  - Leaving the import-time state construction in `lightrag_server.py` meant the entrypoint never fully converged on a dedicated bootstrap-state seam even after the behavioral helpers had already been extracted.
+- Decision:
+  - Introduce `lightrag/api/entrypoint_bootstrap_state.py` with the authoritative helper and module-level exports for the API entrypoint bootstrap state.
+  - Rewire `lightrag/api/lightrag_server.py` to consume that shared bootstrap state instead of constructing `pipmaster` and runtime config globals inline.
+  - Preserve the existing `get_pipmaster()` lookup and `bootstrap_runtime_environment()` behavior without widening this run into the remaining compatibility wrapper exports.
+- Impact:
+  - `lightrag_server.py` sheds the last inline import-time bootstrap state and moves closer to a pure compatibility facade.
+  - The extracted seam now has focused regression coverage for bootstrap-state construction and module-level exports in `tests/test_entrypoint_bootstrap_state.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
