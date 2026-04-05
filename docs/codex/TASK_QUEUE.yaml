@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after BI1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after BJ1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1691,4 +1691,32 @@ tasks:
     notes:
       - "Queued after BH1 root-cause analysis showed the remaining embedding hotspot in `create_app()` is the nested embedding factory itself rather than another tiny policy branch."
       - "Completed by introducing lightrag/api/embedding_model_factory.py for provider-default resolution, provider-specific dispatch, and EmbeddingFunc assembly, then rewiring lightrag_server.py to call that helper."
+      - "Focused regression coverage lives in tests/test_embedding_model_factory.py."
+
+  - id: BJ1
+    title: "Absorb embedding max-token-size logging into embedding_model_factory.py"
+    priority: 65
+    status: completed
+    depends_on: [BI1]
+    area: "api"
+    problem_statement: "After `BI1`, the FastAPI server entrypoint still logs the embedding max-token-size source inline, so app construction still owns one remaining embedding assembly log contract."
+    root_cause_hypothesis: "The `Embedding max_token_size` branch only depends on the built `EmbeddingFunc`, the embedding binding, and whether `args.embedding_token_limit` overrode the provider default, so this source-reporting rule belongs with embedding factory assembly instead of remaining in `create_app()`."
+    definition_of_done:
+      - "`embedding_model_factory.py` owns the embedding max-token-size source logging contract"
+      - "`lightrag_server.py` no longer logs embedding max-token-size source inline"
+      - "The existing env-var, provider-default, and disabled logging messages remain unchanged"
+      - "Focused tests cover representative logging outcomes at the embedding-factory seam"
+    validation_commands:
+      - "python -m ruff check lightrag/api/embedding_model_factory.py lightrag/api/lightrag_server.py tests/test_embedding_model_factory.py"
+      - "python -m pytest tests/test_embedding_model_factory.py -q"
+    risk_level: "low"
+    expected_files:
+      - "lightrag/api/embedding_model_factory.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_embedding_model_factory.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BI1 root-cause analysis showed the remaining embedding assembly seam in `create_app()` is the max-token-size source logging block rather than the larger LightRAG constructor."
+      - "Completed by moving the max-token-size source logging into lightrag/api/embedding_model_factory.py and removing the duplicate inline branch from lightrag_server.py."
       - "Focused regression coverage lives in tests/test_embedding_model_factory.py."

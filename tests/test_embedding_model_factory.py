@@ -4,6 +4,7 @@ import asyncio
 import sys
 from types import ModuleType, SimpleNamespace
 
+from lightrag.api import embedding_model_factory
 from lightrag.api.embedding_model_factory import build_embedding_func
 from lightrag.utils import EmbeddingFunc
 
@@ -139,3 +140,77 @@ def test_build_embedding_func_uses_modelscope_initializer(monkeypatch):
     assert embedding_func.max_token_size == 4096
     assert init_calls == [r"D:\models\demo-bge"]
     assert embed_calls == [(["hello"], "tokenizer", "embed-model")]
+
+
+def test_build_embedding_func_logs_provider_default_max_token_size(monkeypatch):
+    messages = []
+    openai_module = ModuleType("lightrag.llm.openai")
+
+    async def fake_openai_embed(
+        texts, model=None, base_url=None, api_key=None, embedding_dim=None
+    ):
+        return [[0.1, 0.2]]
+
+    openai_module.openai_embed = EmbeddingFunc(
+        embedding_dim=256,
+        max_token_size=8192,
+        func=fake_openai_embed,
+    )
+    monkeypatch.setitem(sys.modules, "lightrag.llm.openai", openai_module)
+    monkeypatch.setattr(
+        embedding_model_factory.logger,
+        "info",
+        lambda message: messages.append(message),
+    )
+
+    build_embedding_func(
+        config_cache=SimpleNamespace(
+            ollama_embedding_options=None,
+            gemini_embedding_options=None,
+        ),
+        binding="openai",
+        model="demo-model",
+        host="http://localhost",
+        api_key="secret",
+        args=_args(),
+    )
+
+    assert any(
+        "Embedding max_token_size: 8192 (from openai provider default)" in message
+        for message in messages
+    )
+
+
+def test_build_embedding_func_logs_disabled_max_token_size(monkeypatch):
+    messages = []
+    openai_module = ModuleType("lightrag.llm.openai")
+
+    async def fake_openai_embed(
+        texts, model=None, base_url=None, api_key=None, embedding_dim=None
+    ):
+        return [[0.1, 0.2]]
+
+    openai_module.openai_embed = fake_openai_embed
+    monkeypatch.setitem(sys.modules, "lightrag.llm.openai", openai_module)
+    monkeypatch.setattr(
+        embedding_model_factory.logger,
+        "info",
+        lambda message: messages.append(message),
+    )
+
+    build_embedding_func(
+        config_cache=SimpleNamespace(
+            ollama_embedding_options=None,
+            gemini_embedding_options=None,
+        ),
+        binding="openai",
+        model="demo-model",
+        host="http://localhost",
+        api_key="secret",
+        args=_args(),
+    )
+
+    assert any(
+        "Embedding max_token_size: not set (90% token warning disabled)" in message
+        for message in messages
+    )

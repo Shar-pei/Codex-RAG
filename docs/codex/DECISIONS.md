@@ -1139,3 +1139,19 @@
   - `lightrag_server.py` sheds the remaining large embedding-factory block and moves closer to app assembly plus runtime wiring only.
   - The extracted embedding-factory contract now has focused regression coverage in `tests/test_embedding_model_factory.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-073: BJ1 makes embedding_model_factory authoritative for max-token-size logging too
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BI1`, `lightrag/api/lightrag_server.py` no longer owned embedding provider dispatch, but it still logged the `Embedding max_token_size` source inline immediately after building the `EmbeddingFunc`.
+  - That logging branch depends only on the assembled embedding function plus whether `args.embedding_token_limit` overrode the provider default.
+  - Keeping it in `create_app()` left one last embedding-assembly logging rule outside the new embedding factory helper.
+- Decision:
+  - Extend `lightrag/api/embedding_model_factory.py` so it owns the max-token-size source logging alongside provider-default resolution and `EmbeddingFunc` assembly.
+  - Remove the duplicate inline max-token-size logging branch from `lightrag/api/lightrag_server.py`.
+  - Preserve the existing env-var, provider-default, and disabled logging messages without widening this run into broader embedding or LightRAG-construction changes.
+- Impact:
+  - `lightrag_server.py` sheds another narrow embedding assembly branch and moves closer to pure app assembly plus runtime wiring.
+  - The embedding-factory seam now includes focused regression coverage for max-token-size logging outcomes in `tests/test_embedding_model_factory.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.

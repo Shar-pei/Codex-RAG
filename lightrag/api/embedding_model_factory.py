@@ -194,4 +194,17 @@ def build_embedding_func(config_cache, binding, model, host, api_key, args) -> E
         f"Embedding config: binding={binding} model={model} "
         f"embedding_dim={final_embedding_dim} max_token_size={final_max_token_size}"
     )
+    if embedding_func_instance.max_token_size:
+        source = (
+            "env variable"
+            if args.embedding_token_limit
+            else f"{binding} provider default"
+        )
+        logger.info(
+            f"Embedding max_token_size: {embedding_func_instance.max_token_size} "
+            f"(from {source})"
+        )
+    else:
+        logger.info("Embedding max_token_size: not set (90% token warning disabled)")
+
     return embedding_func_instance

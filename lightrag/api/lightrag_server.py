@@ -93,19 +93,6 @@ def create_app(args):
 
     apply_embedding_dimension_policy(embedding_func, args)
 
-    # Log max_token_size source
-    if embedding_func.max_token_size:
-        source = (
-            "env variable"
-            if args.embedding_token_limit
-            else f"{args.embedding_binding} provider default"
-        )
-        logger.info(
-            f"Embedding max_token_size: {embedding_func.max_token_size} (from {source})"
-        )
-    else:
-        logger.info("Embedding max_token_size: not set (90% token warning disabled)")
-
     rerank_model_func = build_rerank_model_func(args)
 
     # Create ollama_server_infos from command line arguments
