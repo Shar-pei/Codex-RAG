@@ -1347,3 +1347,19 @@
   - `lightrag_server.py` sheds another configuration-heavy assembly block and moves incrementally closer to a thin entrypoint.
   - The extracted seam now has focused regression coverage for log path derivation, handler reset behavior, and dictConfig payload forwarding in `tests/test_logging_setup.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-086: BW1 moves dependency bootstrap checking behind a helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BV1`, `lightrag/api/lightrag_server.py` had become thinner, but it still owned the inline dependency bootstrap loop in `check_and_install_dependencies()`.
+  - That remaining block was a narrow bootstrap contract: enumerate the required packages and, for each missing one, print install progress and call the package manager's install path.
+  - Keeping it in the entrypoint module left one more operational bootstrap responsibility embedded in `lightrag_server.py`.
+- Decision:
+  - Introduce `lightrag/api/dependency_bootstrap.py` with `ensure_required_packages(...)` as the authoritative helper for required-package enumeration and install-on-miss behavior.
+  - Rewire `lightrag/api/lightrag_server.py` so `check_and_install_dependencies()` delegates to that helper instead of running the package loop inline.
+  - Preserve the existing required-package list and install progress output without widening this run into the remaining import-time `.env` and `config.ini` bootstrap side effects.
+- Impact:
+  - `lightrag_server.py` sheds another operational bootstrap seam and moves incrementally closer to a thin entrypoint.
+  - The extracted seam now has focused regression coverage for installed-package skipping and missing-package install ordering in `tests/test_dependency_bootstrap.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.

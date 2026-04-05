@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "BW1 is now the highest-priority pending task: extract dependency bootstrap checking from `lightrag_server.py` after BV1 moved logging configuration assembly behind a helper"
+  current_focus: "BX1 is now the highest-priority pending task: extract .env/config bootstrap side effects from `lightrag_server.py` after BW1 moved dependency bootstrap checking behind a helper"
 
 tasks:
   - id: A0
@@ -2060,7 +2060,7 @@ tasks:
   - id: BW1
     title: "Extract dependency bootstrap checking from lightrag_server.py"
     priority: 78
-    status: pending
+    status: completed
     depends_on: [BV1]
     area: "api"
     problem_statement: "After `BV1`, the FastAPI server entrypoint still owns the inline dependency bootstrap loop in `check_and_install_dependencies()`, including required package enumeration and `pipmaster`-driven install behavior."
@@ -2082,3 +2082,31 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Queued after BV1 root-cause analysis showed the remaining hotspot in `lightrag_server.py` is the dependency bootstrap loop rather than the now-extracted logging setup."
+      - "Completed by introducing `lightrag/api/dependency_bootstrap.py` for required-package enumeration and install-on-miss behavior, then rewiring `check_and_install_dependencies()` to delegate to that helper."
+      - "Focused regression coverage lives in `tests/test_dependency_bootstrap.py`."
+
+  - id: BX1
+    title: "Extract .env and config bootstrap side effects from lightrag_server.py"
+    priority: 79
+    status: pending
+    depends_on: [BW1]
+    area: "api"
+    problem_statement: "After `BW1`, the FastAPI server entrypoint still owns the import-time `.env` loading plus `configparser` bootstrap side effects inline, so the module continues to mix process-entrypoint definitions with environment/config initialization."
+    root_cause_hypothesis: "Previous tasks isolated runtime and startup orchestration, but the `.env` and `config.ini` bootstrap remained embedded in `lightrag_server.py` because those import-time side effects were never grouped behind a dedicated helper."
+    definition_of_done:
+      - "A dedicated helper module owns the `.env` loading and `config.ini` bootstrap side effects used by the API entrypoint"
+      - "`lightrag_server.py` uses that helper instead of inlining `.env` loading and config parser bootstrap"
+      - "The existing `.env` override behavior and `config.ini` read path remain unchanged"
+      - "Focused tests cover representative dotenv/bootstrap forwarding"
+    validation_commands:
+      - "python -m ruff check lightrag/api/runtime_bootstrap.py lightrag/api/lightrag_server.py tests/test_runtime_bootstrap.py"
+      - "python -m pytest tests/test_runtime_bootstrap.py -q"
+    risk_level: "low"
+    expected_files:
+      - "lightrag/api/runtime_bootstrap.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_runtime_bootstrap.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BW1 root-cause analysis showed the remaining hotspot in `lightrag_server.py` is the import-time runtime bootstrap side effects rather than the now-extracted dependency bootstrap loop."

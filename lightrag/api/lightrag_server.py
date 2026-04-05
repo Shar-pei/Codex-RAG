@@ -8,6 +8,7 @@ import configparser
 from dotenv import load_dotenv
 from lightrag._pipmaster import get_pipmaster
 from lightrag.api.app_composition import build_app_composition
+from lightrag.api.dependency_bootstrap import ensure_required_packages
 from lightrag.api.logging_setup import configure_server_logging
 from lightrag.api.process_entrypoint import run_process_entrypoint
 from lightrag.api.server_startup import run_server_startup
@@ -67,19 +68,14 @@ def configure_logging():
 
 
 def check_and_install_dependencies():
-    """Check and install required dependencies"""
+    """Check and install required dependencies."""
     required_packages = [
         "uvicorn",
         "tiktoken",
         "fastapi",
         # Add other required packages here
     ]
-
-    for package in required_packages:
-        if not pm.is_installed(package):
-            print(f"Installing {package}...")
-            pm.install(package)
-            print(f"{package} installed successfully")
+    ensure_required_packages(required_packages=required_packages, package_manager=pm)
 
 
 def main():
