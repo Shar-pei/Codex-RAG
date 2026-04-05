@@ -225,3 +225,8 @@
     - `git remote show origin` -> `Recv failure: Connection was reset`
     - `git push --porcelain origin codex/lightrag` -> `Failed to connect to github.com port 443 after 21135 ms: Could not connect to server`
   - `credential.helper` is still `manager`, so the present blocker is outbound HTTPS connectivity to GitHub rather than missing local credentials.
+  - Additional transport checks in a later continuation narrow the fallback story:
+    - `Test-NetConnection github.com -Port 443` -> `TcpTestSucceeded : False`
+    - `Test-NetConnection github.com -Port 22` -> `TcpTestSucceeded : True`
+    - `ssh -i ~/.ssh/id_rsa -o IdentitiesOnly=yes -T git@github.com` -> `Permission denied (publickey)`
+  - The local machine can reach GitHub over SSH, but the existing `~/.ssh/id_rsa` key is not authorized for the `Shar-pei` account, so there is still no viable push path from this environment.

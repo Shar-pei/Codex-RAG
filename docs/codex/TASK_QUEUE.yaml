@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Push recovery remains blocked by GitHub HTTPS connectivity; E1 benchmark and acceptance reporting stays pending until codex/lightrag is durable on origin"
+  current_focus: "Push recovery remains blocked: GitHub HTTPS is unreachable and the local SSH key is not authorized; E1 stays pending until codex/lightrag is durable on origin"
 
 tasks:
   - id: A0
