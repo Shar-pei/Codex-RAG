@@ -2,11 +2,10 @@
 This module contains all document-related routes for the LightRAG API.
 """
 
-import asyncio
 from lightrag.utils import logger
 import shutil
 import traceback
-from typing import Dict, List, Optional
+from typing import Optional
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -17,7 +16,7 @@ from fastapi import (
 )
 
 from lightrag import LightRAG
-from lightrag.base import DeletionResult, DocProcessingStatus, DocStatus
+from lightrag.base import DeletionResult
 from lightrag.api.routers.document_clear_pipeline import (
     clear_documents_pipeline as _clear_documents_pipeline,
 )
@@ -40,6 +39,13 @@ from lightrag.api.routers.document_pipeline_control import (
     request_pipeline_cancellation as _request_pipeline_cancellation,
     start_failed_document_reprocessing as _start_failed_document_reprocessing,
 )
+from lightrag.api.routers.document_status_queries import (
+    build_doc_status_response as _build_doc_status_response,
+    get_document_status_counts_response as _get_document_status_counts_response,
+    get_documents_statuses_response as _get_documents_statuses_response,
+    get_paginated_documents_response as _get_paginated_documents_response,
+    get_track_status_response as _get_track_status_response,
+)
 from lightrag.api.routers.document_operation_models import (
     CancelPipelineResponse,
     ClearCacheRequest,
@@ -58,15 +64,12 @@ from lightrag.api.routers.document_operation_models import (
 from lightrag.utils import generate_track_id
 from lightrag.api.utils_api import get_combined_auth_dependency
 from lightrag.api.routers.document_status_models import (
-    DocStatusResponse,
     DocsStatusesResponse,
     DocumentsRequest,
     PaginatedDocsResponse,
-    PaginationInfo,
     PipelineStatusResponse,
     StatusCountsResponse,
     TrackStatusResponse,
-    format_datetime,
 )
 
 pipeline_enqueue_file = _pipeline_enqueue_file
@@ -79,6 +82,11 @@ clear_documents_pipeline = _clear_documents_pipeline
 get_pipeline_status_response = _get_pipeline_status_response
 start_failed_document_reprocessing = _start_failed_document_reprocessing
 request_pipeline_cancellation = _request_pipeline_cancellation
+build_doc_status_response = _build_doc_status_response
+get_documents_statuses_response = _get_documents_statuses_response
+get_track_status_response = _get_track_status_response
+get_paginated_documents_response = _get_paginated_documents_response
+get_document_status_counts_response = _get_document_status_counts_response
 
 
 router = APIRouter(
@@ -398,85 +406,7 @@ def create_document_routes(
         Raises:
             HTTPException: If an error occurs while retrieving document statuses (500).
         """
-        try:
-            statuses = (
-                DocStatus.PENDING,
-                DocStatus.PROCESSING,
-                DocStatus.PREPROCESSED,
-                DocStatus.PROCESSED,
-                DocStatus.FAILED,
-            )
-
-            tasks = [rag.get_docs_by_status(status) for status in statuses]
-            results: List[Dict[str, DocProcessingStatus]] = await asyncio.gather(*tasks)
-
-            response = DocsStatusesResponse()
-            total_documents = 0
-            max_documents = 1000
-
-            # Convert results to lists for easier processing
-            status_documents = []
-            for idx, result in enumerate(results):
-                status = statuses[idx]
-                docs_list = []
-                for doc_id, doc_status in result.items():
-                    docs_list.append((doc_id, doc_status))
-                status_documents.append((status, docs_list))
-
-            # Fair distribution: round-robin across statuses
-            status_indices = [0] * len(
-                status_documents
-            )  # Track current index for each status
-            current_status_idx = 0
-
-            while total_documents < max_documents:
-                # Check if we have any documents left to process
-                has_remaining = False
-                for status_idx, (status, docs_list) in enumerate(status_documents):
-                    if status_indices[status_idx] < len(docs_list):
-                        has_remaining = True
-                        break
-
-                if not has_remaining:
-                    break
-
-                # Try to get a document from the current status
-                status, docs_list = status_documents[current_status_idx]
-                current_index = status_indices[current_status_idx]
-
-                if current_index < len(docs_list):
-                    doc_id, doc_status = docs_list[current_index]
-
-                    if status not in response.statuses:
-                        response.statuses[status] = []
-
-                    response.statuses[status].append(
-                        DocStatusResponse(
-                            id=doc_id,
-                            content_summary=doc_status.content_summary,
-                            content_length=doc_status.content_length,
-                            status=doc_status.status,
-                            created_at=format_datetime(doc_status.created_at),
-                            updated_at=format_datetime(doc_status.updated_at),
-                            track_id=doc_status.track_id,
-                            chunks_count=doc_status.chunks_count,
-                            error_msg=doc_status.error_msg,
-                            metadata=doc_status.metadata,
-                            file_path=doc_status.file_path,
-                        )
-                    )
-
-                    status_indices[current_status_idx] += 1
-                    total_documents += 1
-
-                # Move to next status (round-robin)
-                current_status_idx = (current_status_idx + 1) % len(status_documents)
-
-            return response
-        except Exception as e:
-            logger.error(f"Error GET /documents: {str(e)}")
-            logger.error(traceback.format_exc())
-            raise HTTPException(status_code=500, detail=str(e))
+        return await get_documents_statuses_response(rag)
 
     @router.delete(
         "/delete_document",
@@ -688,55 +618,7 @@ def create_document_routes(
         Raises:
             HTTPException: If track_id is invalid (400) or an error occurs (500).
         """
-        try:
-            # Validate track_id
-            if not track_id or not track_id.strip():
-                raise HTTPException(status_code=400, detail="Track ID cannot be empty")
-
-            track_id = track_id.strip()
-
-            # Get documents by track_id
-            docs_by_track_id = await rag.aget_docs_by_track_id(track_id)
-
-            # Convert to response format
-            documents = []
-            status_summary = {}
-
-            for doc_id, doc_status in docs_by_track_id.items():
-                documents.append(
-                    DocStatusResponse(
-                        id=doc_id,
-                        content_summary=doc_status.content_summary,
-                        content_length=doc_status.content_length,
-                        status=doc_status.status,
-                        created_at=format_datetime(doc_status.created_at),
-                        updated_at=format_datetime(doc_status.updated_at),
-                        track_id=doc_status.track_id,
-                        chunks_count=doc_status.chunks_count,
-                        error_msg=doc_status.error_msg,
-                        metadata=doc_status.metadata,
-                        file_path=doc_status.file_path,
-                    )
-                )
-
-                # Build status summary
-                # Handle both DocStatus enum and string cases for robust deserialization
-                status_key = str(doc_status.status)
-                status_summary[status_key] = status_summary.get(status_key, 0) + 1
-
-            return TrackStatusResponse(
-                track_id=track_id,
-                documents=documents,
-                total_count=len(documents),
-                status_summary=status_summary,
-            )
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Error getting track status for {track_id}: {str(e)}")
-            logger.error(traceback.format_exc())
-            raise HTTPException(status_code=500, detail=str(e))
+        return await get_track_status_response(rag, track_id)
 
     @router.post(
         "/paginated",
@@ -765,65 +647,7 @@ def create_document_routes(
         Raises:
             HTTPException: If an error occurs while retrieving documents (500).
         """
-        try:
-            # Get paginated documents and status counts in parallel
-            docs_task = rag.doc_status.get_docs_paginated(
-                status_filter=request.status_filter,
-                page=request.page,
-                page_size=request.page_size,
-                sort_field=request.sort_field,
-                sort_direction=request.sort_direction,
-            )
-            status_counts_task = rag.doc_status.get_all_status_counts()
-
-            # Execute both queries in parallel
-            (documents_with_ids, total_count), status_counts = await asyncio.gather(
-                docs_task, status_counts_task
-            )
-
-            # Convert documents to response format
-            doc_responses = []
-            for doc_id, doc in documents_with_ids:
-                doc_responses.append(
-                    DocStatusResponse(
-                        id=doc_id,
-                        content_summary=doc.content_summary,
-                        content_length=doc.content_length,
-                        status=doc.status,
-                        created_at=format_datetime(doc.created_at),
-                        updated_at=format_datetime(doc.updated_at),
-                        track_id=doc.track_id,
-                        chunks_count=doc.chunks_count,
-                        error_msg=doc.error_msg,
-                        metadata=doc.metadata,
-                        file_path=doc.file_path,
-                    )
-                )
-
-            # Calculate pagination info
-            total_pages = (total_count + request.page_size - 1) // request.page_size
-            has_next = request.page < total_pages
-            has_prev = request.page > 1
-
-            pagination = PaginationInfo(
-                page=request.page,
-                page_size=request.page_size,
-                total_count=total_count,
-                total_pages=total_pages,
-                has_next=has_next,
-                has_prev=has_prev,
-            )
-
-            return PaginatedDocsResponse(
-                documents=doc_responses,
-                pagination=pagination,
-                status_counts=status_counts,
-            )
-
-        except Exception as e:
-            logger.error(f"Error getting paginated documents: {str(e)}")
-            logger.error(traceback.format_exc())
-            raise HTTPException(status_code=500, detail=str(e))
+        return await get_paginated_documents_response(rag, request)
 
     @router.get(
         "/status_counts",
@@ -843,14 +667,7 @@ def create_document_routes(
         Raises:
             HTTPException: If an error occurs while retrieving status counts (500).
         """
-        try:
-            status_counts = await rag.doc_status.get_all_status_counts()
-            return StatusCountsResponse(status_counts=status_counts)
-
-        except Exception as e:
-            logger.error(f"Error getting document status counts: {str(e)}")
-            logger.error(traceback.format_exc())
-            raise HTTPException(status_code=500, detail=str(e))
+        return await get_document_status_counts_response(rag)
 
     @router.post(
         "/reprocess_failed",

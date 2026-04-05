@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "P1 completed by extracting pipeline control helpers out of document_routes.py, leaving the document API router with less shared-state orchestration logic"
+  current_focus: "Q1 completed by extracting read-only document status query helpers out of document_routes.py, leaving the router with less response-assembly logic"
 
 tasks:
   - id: A0
@@ -492,3 +492,29 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving pipeline-status reads, failed-document reprocessing startup, and cancellation logic into lightrag/api/routers/document_pipeline_control.py while keeping document_routes.py as the compatibility import surface."
+
+  - id: Q1
+    title: "Extract read-only document status query helpers from document_routes.py"
+    priority: 20
+    status: completed
+    depends_on: [P1]
+    area: "api"
+    problem_statement: "The document API router still owns read-only document status queries and repeats DocStatusResponse assembly across grouped, tracked, paginated, and aggregated status endpoints."
+    root_cause_hypothesis: "Document read endpoints accumulated inline in document_routes.py because they were treated as simple route handlers, even though they share a common response-building seam and do not depend on route state."
+    definition_of_done:
+      - "Read-only document status query helpers live in a dedicated module"
+      - "Shared DocStatusResponse construction is centralized for the extracted query paths"
+      - "document_routes.py preserves the helper import surface through compatibility aliases"
+      - "Focused tests cover re-exports plus key grouped, tracked, and paginated query behaviors"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/document_routes.py lightrag/api/routers/document_status_queries.py tests/test_document_status_queries.py"
+      - "python -m pytest tests/test_document_status_queries.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/document_routes.py"
+      - "lightrag/api/routers/document_status_queries.py"
+      - "tests/test_document_status_queries.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving grouped, tracked, paginated, and aggregated document status query helpers into lightrag/api/routers/document_status_queries.py while keeping document_routes.py as the compatibility import surface."

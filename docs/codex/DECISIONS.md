@@ -425,3 +425,19 @@
   - `document_routes.py` sheds another cluster of shared-state orchestration and moves closer to pure endpoint composition.
   - Pipeline-control behavior now has direct regression tests for history truncation, background-task startup, and cancellation flag updates without importing the full router.
   - A later follow-on task can target the remaining read-only document status/query endpoints as a separate seam.
+
+## DCR-028: Q1 moves read-only document status queries behind a status-query seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `P1`, the main non-route cluster left in `lightrag/api/routers/document_routes.py` was the set of read-only status endpoints: grouped status listing, track-id lookup, paginated listing, and aggregated status counts.
+  - Those handlers repeated the same `DocStatusResponse` field mapping several times while also owning query-specific rules such as the 1000-document round-robin cap for the deprecated grouped listing.
+  - The behavior depends on `LightRAG` document-status reads and response normalization, not on FastAPI route state.
+- Decision:
+  - Introduce `lightrag/api/routers/document_status_queries.py` for `build_doc_status_response(...)`, `get_documents_statuses_response(...)`, `get_track_status_response(...)`, `get_paginated_documents_response(...)`, and `get_document_status_counts_response(...)`.
+  - Import those helpers back into `lightrag/api/routers/document_routes.py` so the router remains the compatibility surface for extracted document helpers.
+  - Keep mutation-oriented endpoints such as delete, clear-cache, and graph deletion in `document_routes.py` for now instead of widening this run into a broader command/query split.
+- Impact:
+  - `document_routes.py` drops another block of response-assembly logic and moves closer to a route-only composition layer.
+  - Shared `DocStatusResponse` construction now lives in one place for the extracted query paths, which reduces mapping drift across grouped, tracked, and paginated reads.
+  - Follow-on cleanup can focus on the remaining mutation endpoints as a separate seam instead of mixing them with read-only status queries.
