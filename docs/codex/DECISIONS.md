@@ -1267,3 +1267,19 @@
   - `lightrag_server.py` sheds another runtime-bootstrap responsibility and moves incrementally closer to pure app assembly.
   - The extracted seam now has focused regression coverage for working-directory preparation, runtime-factory forwarding, and rerank-enabled state in `tests/test_rag_app_runtime.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-081: BR1 moves the remaining FastAPI app shell assembly behind a helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BQ1`, `lightrag/api/lightrag_server.py` no longer owned runtime bootstrap details, but it still instantiated the `FastAPI` app, attached the query validation exception handler, configured CORS, and registered routes from the assembled route context.
+  - Those steps formed one last app-shell assembly contract around the already prepared runtime and startup state.
+  - A focused test attempt also exposed hidden import-time coupling: resolving the route-context and route-registry defaults eagerly during module import triggered config parsing side effects, which made the new seam hard to validate in isolation.
+- Decision:
+  - Introduce `lightrag/api/app_shell_factory.py` with `build_app_shell(...)` as the authoritative helper for FastAPI app instantiation, validation-handler wiring, CORS configuration, and route registration.
+  - Rewire `lightrag/api/lightrag_server.py` to call that helper instead of assembling the app shell inline.
+  - Resolve the default route-context builder and route registrar lazily inside `build_app_shell(...)` so importing the helper does not eagerly trigger route-package config side effects.
+- Impact:
+  - `lightrag_server.py` sheds the remaining app-shell assembly block and moves incrementally closer to pure composition orchestration.
+  - The extracted seam now has focused regression coverage for app-shell wiring and route-context forwarding in `tests/test_app_shell_factory.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.

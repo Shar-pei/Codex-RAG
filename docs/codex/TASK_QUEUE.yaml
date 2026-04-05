@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "BR1 is now the highest-priority pending task: extract FastAPI app shell assembly from `lightrag_server.py` after BQ1 moved the remaining RAG runtime bootstrap behind a helper"
+  current_focus: "BS1 is now the highest-priority pending task: extract the remaining create_app orchestration from `lightrag_server.py` after BR1 moved FastAPI app shell assembly behind a helper"
 
 tasks:
   - id: A0
@@ -1920,7 +1920,7 @@ tasks:
   - id: BR1
     title: "Extract FastAPI app shell assembly from lightrag_server.py"
     priority: 73
-    status: pending
+    status: completed
     depends_on: [BQ1]
     area: "api"
     problem_statement: "After `BQ1`, the FastAPI server entrypoint still assembles the `FastAPI` app shell inline by instantiating the app, registering the query validation handler, configuring CORS, and wiring routes from the assembled context."
@@ -1942,3 +1942,31 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Queued after BQ1 root-cause analysis showed the remaining hotspot in `create_app()` is the final FastAPI app shell assembly rather than runtime bootstrap."
+      - "Completed by introducing `lightrag/api/app_shell_factory.py` for FastAPI app instantiation, validation-handler wiring, CORS configuration, and route registration, then rewiring `lightrag_server.py` to consume that helper."
+      - "Focused regression coverage lives in `tests/test_app_shell_factory.py`."
+
+  - id: BS1
+    title: "Extract create_app orchestration plan from lightrag_server.py"
+    priority: 74
+    status: pending
+    depends_on: [BR1]
+    area: "api"
+    problem_statement: "After `BR1`, the FastAPI server entrypoint still coordinates the full `create_app()` orchestration inline by deriving startup state, applying runtime logging state, assembling runtime dependencies, building runtime bootstrap state, and finally building the app shell."
+    root_cause_hypothesis: "Previous tasks isolated every sub-step of app assembly, but `create_app()` still owns the high-level composition pipeline because the remaining sequence of startup-state, runtime, and app-shell helper calls has never been grouped behind one orchestration helper."
+    definition_of_done:
+      - "A dedicated helper module owns the remaining `create_app()` orchestration pipeline"
+      - "`lightrag_server.py` uses that helper instead of sequencing startup-state, runtime, and app-shell helpers inline"
+      - "The existing logging-state application, helper ordering, and `create_app()` return behavior remain unchanged"
+      - "Focused tests cover representative orchestration ordering and helper-call forwarding"
+    validation_commands:
+      - "python -m ruff check lightrag/api/app_composition.py lightrag/api/lightrag_server.py tests/test_app_composition.py"
+      - "python -m pytest tests/test_app_composition.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/app_composition.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_app_composition.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BR1 root-cause analysis showed the remaining hotspot in `lightrag_server.py` is the top-level `create_app()` orchestration sequence rather than any one sub-helper."

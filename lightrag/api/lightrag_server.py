@@ -2,8 +2,6 @@
 LightRAG FastAPI Server
 """
 
-from fastapi import FastAPI
-from fastapi.exceptions import RequestValidationError
 import os
 import logging
 import logging.config
@@ -12,14 +10,10 @@ import uvicorn
 import configparser
 from dotenv import load_dotenv
 from lightrag._pipmaster import get_pipmaster
-from lightrag.api.rag_app_runtime import build_rag_app_runtime
-from lightrag.api.app_cors import configure_cors
 from lightrag.api.app_factory_config import build_app_kwargs
-from lightrag.api.app_lifespan import create_app_lifespan
+from lightrag.api.app_shell_factory import build_app_shell
 from lightrag.api.app_startup_state import build_app_startup_state
-from lightrag.api.query_validation_handlers import (
-    create_query_validation_exception_handler,
-)
+from lightrag.api.rag_app_runtime import build_rag_app_runtime
 from lightrag.api.rag_runtime_dependencies import build_rag_runtime_dependencies
 from lightrag.api.utils_api import display_splash_screen, check_env_file
 from .config import (
@@ -28,8 +22,6 @@ from .config import (
 )
 from lightrag.utils import get_env_value
 from lightrag.api import __api_version__
-from lightrag.api.app_route_context import build_route_registry_context
-from lightrag.api.route_registry import register_app_routes
 from lightrag.constants import (
     DEFAULT_LOG_MAX_BYTES,
     DEFAULT_LOG_BACKUP_COUNT,
@@ -48,6 +40,8 @@ load_dotenv(dotenv_path=".env", override=False)
 # Initialize config parser
 config = configparser.ConfigParser()
 config.read("config.ini")
+
+
 def create_app(args):
     startup_state = build_app_startup_state(args, api_version=__api_version__)
 
@@ -63,22 +57,12 @@ def create_app(args):
 
     app_runtime = build_rag_app_runtime(args, runtime_dependencies)
 
-    app = FastAPI(lifespan=create_app_lifespan(app_runtime.rag), **app_kwargs)
-
-    app.exception_handler(RequestValidationError)(
-        create_query_validation_exception_handler()
-    )
-
-    configure_cors(app, global_args.cors_origins)
-
-    register_app_routes(
-        app,
-        build_route_registry_context(
-            rag=app_runtime.rag,
-            startup_state=startup_state,
-            args=args,
-            rerank_enabled=app_runtime.rerank_enabled,
-        ),
+    app = build_app_shell(
+        app_runtime=app_runtime,
+        startup_state=startup_state,
+        args=args,
+        app_kwargs=app_kwargs,
+        cors_origins=global_args.cors_origins,
     )
 
     return app
