@@ -1331,3 +1331,19 @@
   - `lightrag_server.py` sheds another process-control seam and moves incrementally closer to a thin process entrypoint.
   - The extracted seam now has focused regression coverage for Gunicorn branching and startup-helper forwarding in `tests/test_process_entrypoint.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-085: BV1 moves logging configuration assembly behind a helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BU1`, `lightrag/api/lightrag_server.py` had become mostly an entrypoint, but it still owned the full `configure_logging()` assembly inline.
+  - That remaining block was a self-contained logging setup contract: reset handlers and filters for the server loggers, derive the log file path, load env-driven rotation settings, and assemble the `logging.config.dictConfig(...)` payload.
+  - Keeping it in `lightrag_server.py` left one more large configuration structure embedded in the entrypoint module.
+- Decision:
+  - Introduce `lightrag/api/logging_setup.py` with `configure_server_logging(...)` as the authoritative helper for logging handler reset, log path derivation, env-driven rotation settings, and dictConfig payload assembly.
+  - Rewire `lightrag/api/lightrag_server.py` so `configure_logging()` delegates to that helper instead of assembling the logging configuration inline.
+  - Preserve the existing log file path output, handler reset behavior, env-driven rotation settings, and logger/filter wiring without widening this run into the separate dependency bootstrap loop.
+- Impact:
+  - `lightrag_server.py` sheds another configuration-heavy assembly block and moves incrementally closer to a thin entrypoint.
+  - The extracted seam now has focused regression coverage for log path derivation, handler reset behavior, and dictConfig payload forwarding in `tests/test_logging_setup.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.

@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "BV1 is now the highest-priority pending task: extract logging configuration assembly from `lightrag_server.py` after BU1 moved process entrypoint control flow behind a helper"
+  current_focus: "BW1 is now the highest-priority pending task: extract dependency bootstrap checking from `lightrag_server.py` after BV1 moved logging configuration assembly behind a helper"
 
 tasks:
   - id: A0
@@ -2032,7 +2032,7 @@ tasks:
   - id: BV1
     title: "Extract logging configuration assembly from lightrag_server.py"
     priority: 77
-    status: pending
+    status: completed
     depends_on: [BU1]
     area: "api"
     problem_statement: "After `BU1`, the FastAPI server entrypoint still owns the full `configure_logging()` assembly inline, including handler resets, log file path derivation, env-driven rotation settings, and `logging.config.dictConfig(...)` payload construction."
@@ -2054,3 +2054,31 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Queued after BU1 root-cause analysis showed the remaining hotspot in `lightrag_server.py` is the logging configuration assembly rather than the already-extracted process entrypoint control flow."
+      - "Completed by introducing `lightrag/api/logging_setup.py` for handler reset, log path derivation, env-driven rotation settings, and dictConfig payload assembly, then rewiring `configure_logging()` to delegate to that helper."
+      - "Focused regression coverage lives in `tests/test_logging_setup.py`."
+
+  - id: BW1
+    title: "Extract dependency bootstrap checking from lightrag_server.py"
+    priority: 78
+    status: pending
+    depends_on: [BV1]
+    area: "api"
+    problem_statement: "After `BV1`, the FastAPI server entrypoint still owns the inline dependency bootstrap loop in `check_and_install_dependencies()`, including required package enumeration and `pipmaster`-driven install behavior."
+    root_cause_hypothesis: "Previous tasks isolated app construction, process control, and logging setup, but dependency bootstrap remained embedded in `lightrag_server.py` because the required-package list and install loop were never grouped behind a dedicated helper."
+    definition_of_done:
+      - "A dedicated helper module owns the dependency bootstrap checking used by `check_and_install_dependencies()`"
+      - "`lightrag_server.py` uses that helper instead of enumerating and installing required packages inline"
+      - "The existing required-package list and install-on-miss behavior remain unchanged"
+      - "Focused tests cover representative installed and missing package flows"
+    validation_commands:
+      - "python -m ruff check lightrag/api/dependency_bootstrap.py lightrag/api/lightrag_server.py tests/test_dependency_bootstrap.py"
+      - "python -m pytest tests/test_dependency_bootstrap.py -q"
+    risk_level: "low"
+    expected_files:
+      - "lightrag/api/dependency_bootstrap.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_dependency_bootstrap.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BV1 root-cause analysis showed the remaining hotspot in `lightrag_server.py` is the dependency bootstrap loop rather than the now-extracted logging setup."
