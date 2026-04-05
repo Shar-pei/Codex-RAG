@@ -377,3 +377,19 @@
   - `document_routes.py` now starts closer to route composition plus the remaining deletion workflow instead of the full document indexing lifecycle.
   - The document indexing pipeline can now be tested directly for source-padding, ordering, and scan filtering without importing the full route module.
   - Follow-on cleanup can target the remaining deletion background workflow as its own seam rather than continuing to edit one monolithic router.
+
+## DCR-025: N1 moves batch deletion orchestration behind a deletion-pipeline seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `M1`, the last major non-route workflow still embedded in `lightrag/api/routers/document_routes.py` was `background_delete_documents(...)`.
+  - That worker coordinates shared pipeline status, per-document deletion calls, optional filesystem cleanup, and pending-request handoff, but it does not depend on FastAPI route state or response models.
+  - Keeping it inline would leave the router responsible for both the route layer and one long-running background pipeline implementation.
+- Decision:
+  - Introduce `lightrag/api/routers/document_deletion_pipeline.py` for `background_delete_documents(...)`.
+  - Keep the shared-storage coordination and optional file cleanup inside that new module so deletion orchestration is owned in one place.
+  - Import the helper back into `lightrag/api/routers/document_routes.py` so existing imports from `document_routes` remain stable.
+- Impact:
+  - `document_routes.py` now focuses much more tightly on route composition and endpoint behavior instead of long-running background workflows.
+  - The deletion pipeline can be tested directly for status transitions and pending-request handoff without importing the full route module.
+  - Follow-on cleanup can target the remaining route-local clear/status/cancel logic as smaller seams instead of editing a mixed router-and-worker file.
