@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "AD1 completed by extracting graph mutation command helpers out of graph_routes.py, reducing the largest active graph router's remaining write-side orchestration"
+  current_focus: "AE1 completed by extracting read-side graph query helpers out of graph_routes.py, reducing the largest active graph router's remaining query orchestration"
 
 tasks:
   - id: A0
@@ -843,3 +843,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving graph entity/relation create-edit and entity-merge command helpers into lightrag/api/routers/graph_mutation_commands.py while keeping graph_routes.py as the compatibility import surface."
+
+  - id: AE1
+    title: "Extract read-only graph query helpers from graph_routes.py"
+    priority: 34
+    status: completed
+    depends_on: [AD1]
+    area: "api"
+    problem_statement: "The graph API router still owns read-side query logic for graph labels, popular labels, label search, knowledge-graph retrieval, and entity-existence checks alongside route registration."
+    root_cause_hypothesis: "Graph query endpoints accumulated inline in graph_routes.py because they looked small individually, even though together they depend on graph read calls and API-facing error normalization rather than route state."
+    definition_of_done:
+      - "Read-only graph query helpers live in a dedicated module"
+      - "graph_routes.py preserves the helper import surface through compatibility aliases"
+      - "Focused tests cover helper re-exports plus key read behaviors such as backend delegation, query-argument forwarding, error mapping, and entity-existence wrapping"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/graph_routes.py lightrag/api/routers/graph_query_helpers.py tests/test_graph_query_helpers.py"
+      - "python -m pytest tests/test_graph_query_helpers.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/graph_routes.py"
+      - "lightrag/api/routers/graph_query_helpers.py"
+      - "tests/test_graph_query_helpers.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving graph label listing/search, knowledge-graph retrieval, and entity-existence helpers into lightrag/api/routers/graph_query_helpers.py while keeping graph_routes.py as the compatibility import surface."

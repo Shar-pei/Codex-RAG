@@ -2,10 +2,9 @@
 This module contains all graph-related routes for the LightRAG API.
 """
 
-import traceback
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 
 from lightrag.api.routers.graph_models import (
     EntityCreateRequest as _EntityCreateRequest,
@@ -21,6 +20,13 @@ from lightrag.api.routers.graph_mutation_commands import (
     update_entity_response as _update_entity_response,
     update_relation_response as _update_relation_response,
 )
+from lightrag.api.routers.graph_query_helpers import (
+    check_entity_exists_response as _check_entity_exists_response,
+    get_graph_labels_response as _get_graph_labels_response,
+    get_knowledge_graph_response as _get_knowledge_graph_response,
+    get_popular_labels_response as _get_popular_labels_response,
+    search_labels_response as _search_labels_response,
+)
 from lightrag.api.routers.graph_route_descriptions import (
     ENTITY_CREATE_ROUTE_DESCRIPTION as _ENTITY_CREATE_ROUTE_DESCRIPTION,
     ENTITY_EDIT_ROUTE_DESCRIPTION as _ENTITY_EDIT_ROUTE_DESCRIPTION,
@@ -29,7 +35,6 @@ from lightrag.api.routers.graph_route_descriptions import (
     RELATION_CREATE_ROUTE_DESCRIPTION as _RELATION_CREATE_ROUTE_DESCRIPTION,
 )
 
-from lightrag.utils import logger
 from ..utils_api import get_combined_auth_dependency
 
 router = APIRouter(tags=["graph"])
@@ -49,6 +54,11 @@ update_relation_response = _update_relation_response
 create_entity_response = _create_entity_response
 create_relation_response = _create_relation_response
 merge_entities_response = _merge_entities_response
+get_graph_labels_response = _get_graph_labels_response
+get_popular_labels_response = _get_popular_labels_response
+search_labels_response = _search_labels_response
+get_knowledge_graph_response = _get_knowledge_graph_response
+check_entity_exists_response = _check_entity_exists_response
 
 
 def create_graph_routes(rag, api_key: Optional[str] = None):
@@ -57,20 +67,7 @@ def create_graph_routes(rag, api_key: Optional[str] = None):
 
     @router.get("/graph/label/list", dependencies=[Depends(combined_auth)])
     async def get_graph_labels():
-        """
-        Get all graph labels
-
-        Returns:
-            List[str]: List of graph labels
-        """
-        try:
-            return await rag.get_graph_labels()
-        except Exception as e:
-            logger.error(f"Error getting graph labels: {str(e)}")
-            logger.error(traceback.format_exc())
-            raise HTTPException(
-                status_code=500, detail=f"Error getting graph labels: {str(e)}"
-            )
+        return await get_graph_labels_response(rag)
 
     @router.get("/graph/label/popular", dependencies=[Depends(combined_auth)])
     async def get_popular_labels(
@@ -87,14 +84,7 @@ def create_graph_routes(rag, api_key: Optional[str] = None):
         Returns:
             List[str]: List of popular labels sorted by degree (highest first)
         """
-        try:
-            return await rag.chunk_entity_relation_graph.get_popular_labels(limit)
-        except Exception as e:
-            logger.error(f"Error getting popular labels: {str(e)}")
-            logger.error(traceback.format_exc())
-            raise HTTPException(
-                status_code=500, detail=f"Error getting popular labels: {str(e)}"
-            )
+        return await get_popular_labels_response(rag, limit)
 
     @router.get("/graph/label/search", dependencies=[Depends(combined_auth)])
     async def search_labels(
@@ -113,14 +103,7 @@ def create_graph_routes(rag, api_key: Optional[str] = None):
         Returns:
             List[str]: List of matching labels sorted by relevance
         """
-        try:
-            return await rag.chunk_entity_relation_graph.search_labels(q, limit)
-        except Exception as e:
-            logger.error(f"Error searching labels with query '{q}': {str(e)}")
-            logger.error(traceback.format_exc())
-            raise HTTPException(
-                status_code=500, detail=f"Error searching labels: {str(e)}"
-            )
+        return await search_labels_response(rag, q, limit)
 
     @router.get(
         "/graphs",
@@ -132,23 +115,7 @@ def create_graph_routes(rag, api_key: Optional[str] = None):
         max_depth: int = Query(3, description="Maximum depth of graph", ge=1),
         max_nodes: int = Query(1000, description="Maximum nodes to return", ge=1),
     ):
-        try:
-            # Log the label parameter to check for leading spaces
-            logger.debug(
-                f"get_knowledge_graph called with label: '{label}' (length: {len(label)}, repr: {repr(label)})"
-            )
-
-            return await rag.get_knowledge_graph(
-                node_label=label,
-                max_depth=max_depth,
-                max_nodes=max_nodes,
-            )
-        except Exception as e:
-            logger.error(f"Error getting knowledge graph for label '{label}': {str(e)}")
-            logger.error(traceback.format_exc())
-            raise HTTPException(
-                status_code=500, detail=f"Error getting knowledge graph: {str(e)}"
-            )
+        return await get_knowledge_graph_response(rag, label, max_depth, max_nodes)
 
     @router.get("/graph/entity/exists", dependencies=[Depends(combined_auth)])
     async def check_entity_exists(
@@ -163,15 +130,7 @@ def create_graph_routes(rag, api_key: Optional[str] = None):
         Returns:
             Dict[str, bool]: Dictionary with 'exists' key indicating if entity exists
         """
-        try:
-            exists = await rag.chunk_entity_relation_graph.has_node(name)
-            return {"exists": exists}
-        except Exception as e:
-            logger.error(f"Error checking entity existence for '{name}': {str(e)}")
-            logger.error(traceback.format_exc())
-            raise HTTPException(
-                status_code=500, detail=f"Error checking entity existence: {str(e)}"
-            )
+        return await check_entity_exists_response(rag, name)
 
     @router.post(
         "/graph/entity/edit",

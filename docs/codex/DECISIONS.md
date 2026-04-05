@@ -646,3 +646,19 @@
   - `graph_routes.py` sheds its remaining write-side orchestration block and moves closer to a route-focused module.
   - Graph mutation behavior now has focused regression coverage for entity-update fallback summaries, validation-error mapping, and merge success messaging without importing the full router.
   - A follow-on task can target the remaining read-side graph query helpers separately from the graph mutation command seam.
+
+## DCR-042: AE1 moves read-side graph queries behind a query-helper seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AD1`, the remaining non-route behavior in `lightrag/api/routers/graph_routes.py` was concentrated in the five read-side endpoints: graph label listing, popular labels, label search, knowledge-graph retrieval, and entity-existence checks.
+  - Those handlers own graph read calls, the debug log for knowledge-graph labels, and HTTP error normalization, but they do not depend on route registration.
+  - Keeping them inline left the graph router still responsible for both endpoint composition and read-side query orchestration even after the write-side split.
+- Decision:
+  - Introduce `lightrag/api/routers/graph_query_helpers.py` for the read-only graph query helpers.
+  - Reuse and re-export those helpers from `lightrag/api/routers/graph_routes.py` so existing imports remain stable.
+  - Leave the route-registration module in place as the compatibility surface instead of widening this run into a broader package move.
+- Impact:
+  - `graph_routes.py` sheds its remaining read-side orchestration and moves close to a pure route-registration layer.
+  - Graph query behavior now has focused regression coverage for backend delegation, knowledge-graph argument forwarding, error mapping, and entity-existence response wrapping without importing the full router.
+  - Follow-on API work can move away from `graph_routes.py` splitting and target broader route composition or other hotspots.
