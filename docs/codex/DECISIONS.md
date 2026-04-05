@@ -553,3 +553,19 @@
   - `query_routes.py` sheds its remaining non-stream runtime orchestration and moves closer to a route-only module.
   - The `/query/data` fallback path is now a valid `QueryDataResponse` instead of a second-order validation failure.
   - Focused tests now protect stream=False enforcement, query helper re-exports, and the corrected failure normalization path.
+
+## DCR-036: Y1 moves long-form query route descriptions behind a description seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `X1`, most of the remaining bulk in `lightrag/api/routers/query_routes.py` was no longer runtime logic; it was the three long-form route descriptions for `/query`, `/query/stream`, and `/query/data`.
+  - That text is static documentation and does not depend on route-local control flow or runtime state.
+  - Keeping it in handler docstrings made the route module harder to scan and mixed documentation maintenance with endpoint wiring edits.
+- Decision:
+  - Introduce `lightrag/api/routers/query_route_descriptions.py` for the long-form query route description constants.
+  - Reuse those constants through the FastAPI decorator `description=` parameter and re-export them from `lightrag/api/routers/query_routes.py` so the router remains the compatibility surface for extracted query documentation.
+  - Keep the short route handlers in `query_routes.py` for now instead of widening this run into a full route-factory split.
+- Impact:
+  - `query_routes.py` sheds its remaining static documentation bulk and moves closer to a route-wiring module.
+  - Query route descriptions now have a dedicated home and focused regression coverage without requiring edits to runtime query logic.
+  - A follow-on task can target route-factory extraction or other API routers instead of continuing to peel static text out of `query_routes.py`.

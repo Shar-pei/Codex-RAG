@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "X1 completed by extracting non-stream query execution and /query/data normalization out of query_routes.py, reducing the router's remaining runtime orchestration and closing an invalid fallback path"
+  current_focus: "Y1 completed by extracting long-form query route descriptions out of query_routes.py, reducing the router's remaining static documentation bulk"
 
 tasks:
   - id: A0
@@ -693,3 +693,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving non-stream /query execution and /query/data response normalization into lightrag/api/routers/query_execution.py while keeping query_routes.py as the compatibility import surface and fixing the invalid fallback path to include empty metadata."
+
+  - id: Y1
+    title: "Extract query route descriptions from query_routes.py"
+    priority: 28
+    status: completed
+    depends_on: [X1]
+    area: "api"
+    problem_statement: "The query API router still embeds three large long-form route descriptions inline with route registration, leaving the remaining file size dominated by static documentation text instead of route wiring."
+    root_cause_hypothesis: "Query route documentation kept living in handler docstrings because FastAPI can read function docs implicitly, so the largest active router never converged on a dedicated home for its long-form description text."
+    definition_of_done:
+      - "Long-form query route descriptions live in a dedicated module"
+      - "query_routes.py reuses the extracted description constants for route registration and re-exports them for compatibility"
+      - "Focused tests cover description constants and their attachment to the registered routes"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/query_routes.py lightrag/api/routers/query_route_descriptions.py tests/test_query_route_descriptions.py"
+      - "python -m pytest tests/test_query_route_descriptions.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/query_routes.py"
+      - "lightrag/api/routers/query_route_descriptions.py"
+      - "tests/test_query_route_descriptions.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving the /query, /query/stream, and /query/data long-form descriptions into lightrag/api/routers/query_route_descriptions.py while keeping query_routes.py as the compatibility import surface."
