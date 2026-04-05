@@ -297,3 +297,19 @@
 - Impact:
   - Standard `git status` output returns to a clean baseline after `G1` without deleting anything from the user's machine.
   - Future Codex runs can trust that a dirty worktree signals real pending work instead of a leftover local shim.
+
+## DCR-020: I1 moves document status and pagination schemas behind a dedicated API-model seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - `lightrag/api/routers/document_routes.py` remained the largest active API Python module after `D1`, combining route handlers, `DocumentManager`, file extraction helpers, background pipeline functions, and a long block of Pydantic status/pagination models.
+  - The status-facing schemas (`DocStatusResponse`, `DocsStatusesResponse`, `TrackStatusResponse`, `DocumentsRequest`, `PaginationInfo`, `PaginatedDocsResponse`, `StatusCountsResponse`, `PipelineStatusResponse`) form a self-contained seam because they depend mainly on `DocStatus` plus datetime normalization.
+  - Pulling that seam out reduces the router's mixed responsibilities without changing external paths or the `create_document_routes(...)` composition contract.
+- Decision:
+  - Introduce `lightrag/api/routers/document_status_models.py` for the document status and pagination request/response schemas plus shared datetime formatting.
+  - Import those schemas back into `lightrag/api/routers/document_routes.py` so existing imports from `document_routes` continue to work.
+  - Leave upload, deletion, and graph-edit request models in `document_routes.py` for now instead of widening the task into a full router rewrite.
+- Impact:
+  - `document_routes.py` now has a clearer boundary between API schemas and routing/pipeline orchestration.
+  - Follow-on document API cleanup can extract additional seams incrementally rather than editing one monolithic file each time.
+  - Focused tests now protect the extracted schema module and the compatibility re-export path.
