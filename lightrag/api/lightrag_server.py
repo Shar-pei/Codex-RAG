@@ -19,6 +19,7 @@ from lightrag.api.app_lifespan import create_app_lifespan
 from lightrag.api.app_runtime_args import normalize_runtime_args
 from lightrag.api.app_startup_state import build_app_startup_state
 from lightrag.api.llm_config_cache import LLMConfigCache
+from lightrag.api.llm_model_kwargs import build_llm_model_kwargs
 from lightrag.api.query_validation_handlers import (
     create_query_validation_exception_handler,
 )
@@ -252,25 +253,6 @@ def create_app(args):
                 return create_optimized_openai_llm_func(config_cache, args, llm_timeout)
         except ImportError as e:
             raise Exception(f"Failed to import {binding} LLM binding: {e}")
-
-    def create_llm_model_kwargs(binding: str, args, llm_timeout: int) -> dict:
-        """
-        Create LLM model kwargs based on binding type.
-        Uses lazy import for binding-specific options.
-        """
-        if binding in ["lollms", "ollama"]:
-            try:
-                from lightrag.llm.binding_options import OllamaLLMOptions
-
-                return {
-                    "host": args.llm_binding_host,
-                    "timeout": llm_timeout,
-                    "options": OllamaLLMOptions.options_dict(args),
-                    "api_key": args.llm_binding_api_key,
-                }
-            except ImportError as e:
-                raise Exception(f"Failed to import {binding} options: {e}")
-        return {}
 
     def create_optimized_embedding_function(
         config_cache: LLMConfigCache, binding, model, host, api_key, args
@@ -658,7 +640,7 @@ def create_app(args):
             chunk_overlap_token_size=int(args.chunk_overlap_size),
             # chunking_func=lambda tk, content, sc, sc_only, overlap, size:
             #     semantic_chunking_by_token_size(tk, content, overlap, size),
-            llm_model_kwargs=create_llm_model_kwargs(
+            llm_model_kwargs=build_llm_model_kwargs(
                 args.llm_binding, args, llm_timeout
             ),
             embedding_func=embedding_func,

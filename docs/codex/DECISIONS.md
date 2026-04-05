@@ -1043,3 +1043,19 @@
   - `lightrag_server.py` sheds another self-contained startup-context responsibility and moves closer to app assembly plus runtime wiring only.
   - The startup-state contract now has focused regression coverage in `tests/test_app_startup_state.py`, including API key precedence, the frontend-outdated version marker, and workspace-aware document-manager construction.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-067: BD1 moves binding-specific llm_model_kwargs assembly behind a helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BC1`, `lightrag/api/lightrag_server.py` still built `llm_model_kwargs` inline for Ollama-compatible bindings even though that branch is provider-specific config assembly rather than app construction.
+  - The remaining `create_llm_model_kwargs()` helper depended only on `binding`, `args`, and `llm_timeout`, with one immediate caller inside `LightRAG` instantiation.
+  - Keeping it nested inside `create_app()` meant the server entrypoint still owned one more small provider-specific kwargs contract after several startup seams had already been extracted.
+- Decision:
+  - Introduce `lightrag/api/llm_model_kwargs.py` with `build_llm_model_kwargs(...)` as the authoritative helper for binding-specific `llm_model_kwargs` assembly.
+  - Rewire `lightrag/api/lightrag_server.py` to call that helper instead of defining `create_llm_model_kwargs()` inline.
+  - Preserve the existing Ollama-compatible host, timeout, options, and API-key behavior without widening this run into the larger LLM function-factory extraction.
+- Impact:
+  - `lightrag_server.py` sheds another narrow provider-specific configuration branch and moves closer to app assembly plus runtime wiring only.
+  - The extracted kwargs-builder contract now has focused regression coverage in `tests/test_llm_model_kwargs.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
