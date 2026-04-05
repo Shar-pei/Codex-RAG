@@ -28,7 +28,8 @@ from lightrag import LightRAG
 from lightrag.api import __api_version__
 from lightrag.types import GPTKeywordExtractionFormat
 from lightrag.utils import EmbeddingFunc
-from lightrag.api.route_registry import RouteRegistryContext, register_app_routes
+from lightrag.api.app_route_context import RouteRegistryContext
+from lightrag.api.route_registry import register_app_routes
 from lightrag.constants import (
     DEFAULT_LOG_MAX_BYTES,
     DEFAULT_LOG_BACKUP_COUNT,

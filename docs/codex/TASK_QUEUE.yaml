@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after AT1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after AU1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1270,3 +1270,33 @@ tasks:
       - "Queued after AS1 root-cause analysis showed the next narrow route-registry seam is the inline static asset mount block plus the custom WebUI cache-header policy."
       - "Completed by introducing register_static_mounts(...) and SmartStaticFiles in lightrag/api/app_static_mounts.py, rewiring route_registry.py to delegate static mounting there, and adding focused mount/header tests."
       - "The new cache-header coverage also fixed a real Windows path-normalization bug where `assets\\\\...` paths skipped the intended long-lived WebUI asset cache policy."
+
+  - id: AU1
+    title: "Extract route-registry support context from route_registry.py"
+    priority: 50
+    status: completed
+    depends_on: [AT1]
+    area: "api"
+    problem_statement: "The route registry still owns `RouteRegistryContext` plus the auth-handler and version-payload helper contracts, so app composition continues to mix router assembly with support-context derivation."
+    root_cause_hypothesis: "The route extraction series focused on moving runtime route logic out of `route_registry.py`, but the support contract for app assembly stayed inline because it was small and only had one immediate caller, so the composition module never became a pure registry."
+    definition_of_done:
+      - "A dedicated module owns `RouteRegistryContext`, version payload shaping, and auth-handler resolution"
+      - "`route_registry.py` and `lightrag_server.py` use the extracted support-context module"
+      - "The `route_registry.py` compatibility surface for `RouteRegistryContext` remains available"
+      - "Focused tests cover the extracted helper contract plus preserved compatibility import behavior"
+    validation_commands:
+      - "python -m ruff check lightrag/api/app_route_context.py lightrag/api/route_registry.py lightrag/api/lightrag_server.py tests/test_app_route_context.py tests/test_route_registry.py"
+      - "python -m pytest tests/test_app_route_context.py tests/test_route_registry.py -q"
+    risk_level: "low"
+    expected_files:
+      - "lightrag/api/app_route_context.py"
+      - "lightrag/api/route_registry.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_app_route_context.py"
+      - "tests/test_route_registry.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after AT1 root-cause analysis showed the remaining route-registry responsibility is the support contract for assembly context and derived auth/version helpers, not route logic."
+      - "Completed by introducing lightrag/api/app_route_context.py for RouteRegistryContext plus the version/auth helper contract, rewiring route_registry.py and lightrag_server.py to use it, and preserving the route_registry compatibility export."
+      - "Focused regression coverage lives in tests/test_app_route_context.py, with tests/test_route_registry.py continuing to exercise the registry assembly seam."

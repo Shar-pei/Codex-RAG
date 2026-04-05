@@ -899,3 +899,19 @@
   - Route registry moves closer to a pure composition layer.
   - Static asset delivery now has one authoritative home for mount behavior and WebUI cache/header policy.
   - Focused tests now lock both the extracted mount behavior and the corrected cross-platform cache-header contract without changing external API paths, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-058: AU1 moves route-registry support context behind a context-helper seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AT1`, `lightrag/api/route_registry.py` had become mostly pure composition, but it still owned `RouteRegistryContext` plus the helpers that derive the version payload and resolve the auth handler.
+  - Those support contracts are used by app assembly and route factories, but they are not router-registration behavior themselves.
+  - Keeping them inline meant the registry module still mixed composition with support-context ownership, and `lightrag_server.py` still imported the context type from the composition module rather than from an authoritative support-contract module.
+- Decision:
+  - Introduce `lightrag/api/app_route_context.py` as the authoritative home for `RouteRegistryContext`, `build_version_payload(...)`, and `resolve_auth_handler(...)`.
+  - Rewire `lightrag/api/route_registry.py` and `lightrag/api/lightrag_server.py` to use that new module.
+  - Preserve `route_registry.RouteRegistryContext` as a compatibility import surface by re-exporting the extracted type through the registry module namespace.
+- Impact:
+  - Route registry moves closer to a pure app-composition layer.
+  - The app assembly support contract now has one authoritative home instead of being embedded in the registry module.
+  - Focused tests now lock the extracted helper behavior plus the preserved compatibility export without changing external API paths or payload shapes, so `docs/codex/CONTRACTS.md` did not require an update for this task.
