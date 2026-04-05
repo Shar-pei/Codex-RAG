@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after AR1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after AS1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1213,3 +1213,32 @@ tasks:
       - "Queued after AQ1 root-cause analysis showed the next narrow route-registry seam is the inline health endpoint and its mixed responsibility for workspace lookup, status reads, and response shaping."
       - "Completed by introducing create_health_router(...) in lightrag/api/app_health_routes.py, rewiring route_registry.py to include that router, and centralizing workspace resolution plus health payload assembly behind the extracted seam."
       - "Focused regression coverage lives in tests/test_app_health_routes.py, with tests/test_route_registry.py preserving the app-composition behavior."
+
+  - id: AS1
+    title: "Extract the app shell routes from route_registry.py"
+    priority: 48
+    status: completed
+    depends_on: [AR1]
+    area: "api"
+    problem_statement: "The app route registry still defines the app shell routes inline, so app composition owns Swagger UI route wiring, root redirect behavior, and the `/webui` fallback redirect when WebUI assets are missing."
+    root_cause_hypothesis: "D1 split router-family inclusion from app startup, but the app shell routes stayed in `route_registry.py` because they depend on FastAPI app metadata and `webui_assets_exist`, so that shell-routing seam never became its own explicit router factory."
+    definition_of_done:
+      - "A dedicated router factory owns `/docs`, `/docs/oauth2-redirect`, `/`, and the no-WebUI `/webui` fallback redirect behavior"
+      - "`route_registry.py` includes that app shell router instead of defining those routes inline"
+      - "The extracted shell router preserves the existing Swagger UI and redirect behavior"
+      - "Focused tests cover the shell-router contract plus preserved route-registry behavior"
+    validation_commands:
+      - "python -m ruff check lightrag/api/app_shell_routes.py lightrag/api/route_registry.py tests/test_app_shell_routes.py tests/test_route_registry.py"
+      - "python -m pytest tests/test_app_shell_routes.py tests/test_route_registry.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/app_shell_routes.py"
+      - "lightrag/api/route_registry.py"
+      - "tests/test_app_shell_routes.py"
+      - "tests/test_route_registry.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after AR1 root-cause analysis showed the next narrow route-registry seam is the inline app shell route set for Swagger docs, root redirect, and no-WebUI fallback."
+      - "Completed by introducing create_app_shell_router(...) in lightrag/api/app_shell_routes.py, rewiring route_registry.py to include that router, and moving the root/docs/no-WebUI redirect behavior behind the extracted shell seam."
+      - "Focused regression coverage lives in tests/test_app_shell_routes.py, with tests/test_route_registry.py preserving the existing app-composition behavior."

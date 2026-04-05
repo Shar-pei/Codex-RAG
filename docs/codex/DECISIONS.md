@@ -867,3 +867,19 @@
   - Route registry moves closer to a pure composition layer.
   - The root health endpoint now has one authoritative home for workspace lookup, status reads, payload shaping, and error mapping.
   - Focused tests now lock both the health-router contract and the preserved app-level behavior without changing external API paths or response shapes, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-056: AS1 moves the app shell routes behind a shell-router factory
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AR1`, `lightrag/api/route_registry.py` still defined the app shell routes inline: `/docs`, `/docs/oauth2-redirect`, `/`, and the `/webui` fallback redirect when WebUI assets are absent.
+  - Those routes depend on FastAPI app metadata plus the `webui_assets_exist` flag, but they do not depend on route-registry composition of the document/query/graph/Ollama/auth/health router families.
+  - Keeping them inline meant route registry still owned one more self-contained route set after the larger API seams had already been extracted.
+- Decision:
+  - Introduce `lightrag/api/app_shell_routes.py` with `create_app_shell_router(...)` as the explicit app-shell router factory.
+  - Rewire `lightrag/api/route_registry.py` to include that shell router instead of defining the root/docs redirect routes inline.
+  - Preserve the existing Swagger UI behavior, root redirect semantics, and no-WebUI fallback redirect without widening this run into static mount changes.
+- Impact:
+  - Route registry moves closer to a pure app-composition layer.
+  - The app shell routes now have one authoritative home for Swagger UI and redirect behavior.
+  - Focused tests now lock both the shell-router contract and the preserved app-level behavior without changing external API paths or response shapes, so `docs/codex/CONTRACTS.md` did not require an update for this task.

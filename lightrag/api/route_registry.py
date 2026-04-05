@@ -5,16 +5,12 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
-from fastapi.openapi.docs import (
-    get_swagger_ui_html,
-    get_swagger_ui_oauth2_redirect_html,
-)
-from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from lightrag import LightRAG, __version__ as core_version
 from lightrag.api.app_auth_routes import create_auth_router
 from lightrag.api.app_health_routes import create_health_router
+from lightrag.api.app_shell_routes import create_app_shell_router
 from lightrag.api.routers.document_routes import (
     DocumentManager,
     create_document_routes,
@@ -112,28 +108,7 @@ def register_app_routes(app: FastAPI, context: RouteRegistryContext) -> None:
             version_payload=version_payload,
         )
     )
-
-    @app.get("/docs", include_in_schema=False)
-    async def custom_swagger_ui_html():
-        return get_swagger_ui_html(
-            openapi_url=app.openapi_url,
-            title=app.title + " - Swagger UI",
-            oauth2_redirect_url="/docs/oauth2-redirect",
-            swagger_js_url="/static/swagger-ui/swagger-ui-bundle.js",
-            swagger_css_url="/static/swagger-ui/swagger-ui.css",
-            swagger_favicon_url="/static/swagger-ui/favicon-32x32.png",
-            swagger_ui_parameters=app.swagger_ui_parameters,
-        )
-
-    @app.get("/docs/oauth2-redirect", include_in_schema=False)
-    async def swagger_ui_redirect():
-        return get_swagger_ui_oauth2_redirect_html()
-
-    @app.get("/")
-    async def redirect_to_webui():
-        if context.webui_assets_exist:
-            return RedirectResponse(url="/webui")
-        return RedirectResponse(url="/docs")
+    app.include_router(create_app_shell_router(app, context.webui_assets_exist))
 
     swagger_static_dir = Path(__file__).parent / "static" / "swagger-ui"
     if swagger_static_dir.exists():
@@ -154,8 +129,3 @@ def register_app_routes(app: FastAPI, context: RouteRegistryContext) -> None:
         logger.info("WebUI assets mounted at /webui")
     else:
         logger.info("WebUI assets not available, /webui route not mounted")
-
-        @app.get("/webui")
-        @app.get("/webui/")
-        async def webui_redirect_to_docs():
-            return RedirectResponse(url="/docs")
