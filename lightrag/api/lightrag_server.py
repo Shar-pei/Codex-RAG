@@ -25,7 +25,7 @@ from lightrag.api.ollama_server_info import build_ollama_server_infos
 from lightrag.api.query_validation_handlers import (
     create_query_validation_exception_handler,
 )
-from lightrag.api.rag_runtime_config import build_rag_kwargs
+from lightrag.api.rag_runtime_factory import build_rag
 from lightrag.api.rerank_model_factory import build_rerank_model_func
 from lightrag.api.runtime_model_timeouts import build_runtime_model_timeouts
 from lightrag.api.utils_api import display_splash_screen, check_env_file
@@ -34,7 +34,6 @@ from .config import (
     update_uvicorn_mode_config,
 )
 from lightrag.utils import get_env_value
-from lightrag import LightRAG
 from lightrag.api import __api_version__
 from lightrag.api.app_route_context import build_route_registry_context
 from lightrag.api.route_registry import register_app_routes
@@ -95,22 +94,15 @@ def create_app(args):
 
     ollama_server_infos = build_ollama_server_infos(args)
 
-    # Initialize RAG with unified configuration
-    try:
-        rag = LightRAG(
-            **build_rag_kwargs(
-                args=args,
-                config_cache=config_cache,
-                llm_timeout=llm_timeout,
-                embedding_timeout=embedding_timeout,
-                embedding_func=embedding_func,
-                rerank_model_func=rerank_model_func,
-                ollama_server_infos=ollama_server_infos,
-            )
-        )
-    except Exception as e:
-        logger.error(f"Failed to initialize LightRAG: {e}")
-        raise
+    rag = build_rag(
+        args=args,
+        config_cache=config_cache,
+        llm_timeout=llm_timeout,
+        embedding_timeout=embedding_timeout,
+        embedding_func=embedding_func,
+        rerank_model_func=rerank_model_func,
+        ollama_server_infos=ollama_server_infos,
+    )
 
     app = FastAPI(lifespan=create_app_lifespan(rag), **app_kwargs)
 

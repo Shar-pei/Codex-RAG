@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after BN1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "BP1 is now the highest-priority pending task: extract the pre-RAG dependency bundle assembly from `lightrag_server.py` after BO1 made runtime construction a dedicated factory seam"
 
 tasks:
   - id: A0
@@ -1832,3 +1832,57 @@ tasks:
       - "Queued after BM1 root-cause analysis showed the remaining runtime wiring hotspot in `create_app()` is the inline `LightRAG` kwargs mapping rather than another tiny scalar assignment."
       - "Completed by introducing lightrag/api/rag_runtime_config.py for `LightRAG` kwargs assembly and rewiring lightrag_server.py to pass `LightRAG(**build_rag_kwargs(...))`."
       - "Focused regression coverage lives in tests/test_rag_runtime_config.py."
+
+  - id: BO1
+    title: "Extract LightRAG runtime factory from lightrag_server.py"
+    priority: 70
+    status: completed
+    depends_on: [BN1]
+    area: "api"
+    problem_statement: "After `BN1`, the FastAPI server entrypoint still instantiated `LightRAG` inline and owned the constructor failure logging, so app construction still mixed runtime instantiation semantics with orchestration."
+    root_cause_hypothesis: "The remaining `LightRAG(**build_rag_kwargs(...))` call already formed a self-contained runtime factory contract over the assembled dependencies and error logging behavior, but it remained embedded in `create_app()` because the prior extraction stopped at kwargs mapping."
+    definition_of_done:
+      - "A dedicated helper module owns `LightRAG` runtime construction from assembled dependencies"
+      - "`lightrag_server.py` uses that helper instead of instantiating `LightRAG` inline"
+      - "The existing constructor failure logging and re-raise behavior remain unchanged"
+      - "Focused tests cover kwargs forwarding into the runtime factory and failure logging behavior"
+    validation_commands:
+      - "python -m ruff check lightrag/api/rag_runtime_factory.py lightrag/api/lightrag_server.py tests/test_rag_runtime_factory.py"
+      - "python -m pytest tests/test_rag_runtime_factory.py -q"
+    risk_level: "low"
+    expected_files:
+      - "lightrag/api/rag_runtime_factory.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_rag_runtime_factory.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BN1 root-cause analysis showed the remaining runtime-construction seam in `create_app()` is the inline `LightRAG` instantiation plus failure logging rather than another kwargs-mapping change."
+      - "Completed by introducing lightrag/api/rag_runtime_factory.py for `build_rag(...)` and rewiring lightrag_server.py to call that helper."
+      - "Focused regression coverage lives in tests/test_rag_runtime_factory.py."
+
+  - id: BP1
+    title: "Extract pre-RAG dependency bundle assembly from lightrag_server.py"
+    priority: 71
+    status: pending
+    depends_on: [BO1]
+    area: "api"
+    problem_statement: "After `BO1`, the FastAPI server entrypoint still assembles the pre-RAG dependency bundle inline by building `LLMConfigCache`, timeouts, `EmbeddingFunc`, rerank callable, and Ollama server metadata before handing them into the runtime factory."
+    root_cause_hypothesis: "Previous extractions isolated each dependency's internal logic, but `create_app()` still owns the sequencing and packaging of those runtime inputs as one orchestration block, so the next smallest structural seam is a helper that assembles that bundle without broadening into a larger app-factory split."
+    definition_of_done:
+      - "A dedicated helper module assembles the pre-RAG runtime dependency bundle consumed by `build_rag(...)`"
+      - "`lightrag_server.py` uses that helper instead of wiring the dependency bundle inline"
+      - "The existing dependency ordering, embedding dimension policy application, and runtime-factory inputs remain unchanged"
+      - "Focused tests cover representative bundle assembly and helper-call sequencing"
+    validation_commands:
+      - "python -m ruff check lightrag/api/rag_runtime_dependencies.py lightrag/api/lightrag_server.py tests/test_rag_runtime_dependencies.py"
+      - "python -m pytest tests/test_rag_runtime_dependencies.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/rag_runtime_dependencies.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_rag_runtime_dependencies.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BO1 root-cause analysis showed the remaining runtime hotspot in `create_app()` is the pre-RAG dependency bundle assembly rather than the now-extracted LightRAG constructor call."

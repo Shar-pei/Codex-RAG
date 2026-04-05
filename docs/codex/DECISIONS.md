@@ -1219,3 +1219,19 @@
   - `lightrag_server.py` sheds another large runtime-wiring block and moves incrementally closer to pure app assembly plus orchestration.
   - The extracted seam now has focused regression coverage for `LightRAG` kwargs mapping and helper-call forwarding in `tests/test_rag_runtime_config.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-078: BO1 moves LightRAG runtime construction behind a factory helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BN1`, `lightrag/api/lightrag_server.py` no longer mapped all `LightRAG` kwargs inline, but it still instantiated `LightRAG` directly and owned the constructor failure logging.
+  - That remaining call depended only on `build_rag_kwargs(...)` plus the already assembled runtime dependencies, so it formed a clean runtime-factory seam.
+  - Keeping the instantiation in `create_app()` left the app-factory module responsible for both orchestration and runtime-construction error semantics.
+- Decision:
+  - Introduce `lightrag/api/rag_runtime_factory.py` with `build_rag(...)` as the authoritative helper for `LightRAG` runtime construction from assembled dependencies.
+  - Rewire `lightrag/api/lightrag_server.py` to call that helper instead of instantiating `LightRAG` inline.
+  - Preserve the existing constructor failure logging and re-raise behavior without widening this run into the larger pre-RAG dependency assembly block.
+- Impact:
+  - `lightrag_server.py` sheds another runtime-construction responsibility and moves incrementally closer to pure app assembly plus orchestration.
+  - The extracted seam now has focused regression coverage for kwargs forwarding and failure logging in `tests/test_rag_runtime_factory.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
