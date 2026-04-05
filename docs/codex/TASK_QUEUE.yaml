@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "R1 completed by extracting mutation command helpers out of document_routes.py, leaving the router with less command orchestration logic"
+  current_focus: "S1 completed by extracting ingestion command helpers out of document_routes.py, leaving the router close to a pure route-composition layer"
 
 tasks:
   - id: A0
@@ -543,3 +543,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving deletion scheduling, cache clearing, entity deletion, and relation deletion helpers into lightrag/api/routers/document_mutation_commands.py while keeping document_routes.py as the compatibility import surface."
+
+  - id: S1
+    title: "Extract document ingestion command helpers from document_routes.py"
+    priority: 22
+    status: completed
+    depends_on: [R1]
+    area: "api"
+    problem_statement: "The document API router still owns ingestion command logic for scan startup, file upload, single-text insertion, and multi-text insertion alongside route definitions."
+    root_cause_hypothesis: "Ingestion endpoints accumulated inline in document_routes.py because they combine request validation, duplicate checks, track-id generation, and background scheduling, even though that behavior depends on document-manager and pipeline helpers rather than route state."
+    definition_of_done:
+      - "Ingestion command helpers live in a dedicated module"
+      - "document_routes.py preserves the helper import surface through compatibility aliases"
+      - "Focused tests cover re-exports plus key ingestion behaviors such as scan scheduling, duplicate detection, and text enqueue startup"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/document_routes.py lightrag/api/routers/document_ingest_commands.py tests/test_document_ingest_commands.py"
+      - "python -m pytest tests/test_document_ingest_commands.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/document_routes.py"
+      - "lightrag/api/routers/document_ingest_commands.py"
+      - "tests/test_document_ingest_commands.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving scan startup, file upload, and text insertion helpers into lightrag/api/routers/document_ingest_commands.py while keeping document_routes.py as the compatibility import surface."

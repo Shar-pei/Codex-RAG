@@ -457,3 +457,19 @@
   - `document_routes.py` sheds another cluster of command orchestration and moves closer to a route-only layer.
   - Mutation behavior now has direct regression tests for busy-state deletion refusal, cache clearing, and deletion error mapping without importing the full router.
   - Follow-on cleanup can target the remaining upload/text insertion entrypoints as a separate seam instead of mixing them with delete and cache commands.
+
+## DCR-030: S1 moves ingestion command behavior behind an ingestion-command seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `R1`, the main non-route block left in `lightrag/api/routers/document_routes.py` was the ingestion entrypoint cluster: scan startup, file upload, single-text insertion, and multi-text insertion.
+  - Those handlers owned duplicate-source checks, track-id generation, file persistence, and background task scheduling, but they did not depend on route-local composition beyond the existing request models and file parameter binding.
+  - Keeping that logic inline would leave the router mixing endpoint composition with ingestion orchestration even after the command/query cleanup work.
+- Decision:
+  - Introduce `lightrag/api/routers/document_ingest_commands.py` for `start_scan_for_new_documents(...)`, `upload_file_to_input_dir(...)`, `insert_single_text(...)`, and `insert_multiple_texts(...)`.
+  - Import those helpers back into `lightrag/api/routers/document_routes.py` so the router remains the compatibility surface for extracted document helpers.
+  - Keep the remaining router file as the route composition surface rather than widening this run into a broader package move.
+- Impact:
+  - `document_routes.py` sheds the last large ingestion orchestration block and moves close to a pure route-composition layer.
+  - Ingestion behavior now has direct regression tests for scan scheduling, duplicate detection, and text enqueue startup without importing the full router.
+  - Follow-on API work can shift away from document_routes splitting and target broader route composition or other hotspots.

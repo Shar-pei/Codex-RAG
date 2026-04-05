@@ -2,16 +2,12 @@
 This module contains all document-related routes for the LightRAG API.
 """
 
-from lightrag.utils import logger
-import shutil
-import traceback
 from typing import Optional
 from fastapi import (
     APIRouter,
     BackgroundTasks,
     Depends,
     File,
-    HTTPException,
     UploadFile,
 )
 
@@ -32,7 +28,12 @@ from lightrag.api.routers.document_indexing_pipeline import (
 )
 from lightrag.api.routers.document_manager import (
     DocumentManager,
-    sanitize_filename,
+)
+from lightrag.api.routers.document_ingest_commands import (
+    insert_multiple_texts as _insert_multiple_texts,
+    insert_single_text as _insert_single_text,
+    start_scan_for_new_documents as _start_scan_for_new_documents,
+    upload_file_to_input_dir as _upload_file_to_input_dir,
 )
 from lightrag.api.routers.document_mutation_commands import (
     clear_cache_response as _clear_cache_response,
@@ -67,7 +68,6 @@ from lightrag.api.routers.document_operation_models import (
     ReprocessResponse,
     ScanResponse,
 )
-from lightrag.utils import generate_track_id
 from lightrag.api.utils_api import get_combined_auth_dependency
 from lightrag.api.routers.document_status_models import (
     DocsStatusesResponse,
@@ -78,6 +78,10 @@ from lightrag.api.routers.document_status_models import (
     TrackStatusResponse,
 )
 
+start_scan_for_new_documents = _start_scan_for_new_documents
+upload_file_to_input_dir = _upload_file_to_input_dir
+insert_single_text = _insert_single_text
+insert_multiple_texts = _insert_multiple_texts
 pipeline_enqueue_file = _pipeline_enqueue_file
 pipeline_index_file = _pipeline_index_file
 pipeline_index_files = _pipeline_index_files
@@ -125,16 +129,7 @@ def create_document_routes(
         Returns:
             ScanResponse: A response object containing the scanning status and track_id
         """
-        # Generate track_id with "scan" prefix for scanning operation
-        track_id = generate_track_id("scan")
-
-        # Start the scanning process in the background with track_id
-        background_tasks.add_task(run_scanning_process, rag, doc_manager, track_id)
-        return ScanResponse(
-            status="scanning_started",
-            message="Scanning process has been initiated in the background",
-            track_id=track_id,
-        )
+        return await start_scan_for_new_documents(rag, doc_manager, background_tasks)
 
     @router.post(
         "/upload", response_model=InsertResponse, dependencies=[Depends(combined_auth)]
@@ -160,54 +155,7 @@ def create_document_routes(
         Raises:
             HTTPException: If the file type is not supported (400) or other errors occur (500).
         """
-        try:
-            # Sanitize filename to prevent Path Traversal attacks
-            safe_filename = sanitize_filename(file.filename, doc_manager.input_dir)
-
-            if not doc_manager.is_supported_file(safe_filename):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Unsupported file type. Supported types: {doc_manager.supported_extensions}",
-                )
-
-            # Check if filename already exists in doc_status storage
-            existing_doc_data = await rag.doc_status.get_doc_by_file_path(safe_filename)
-            if existing_doc_data:
-                # Get document status information for error message
-                status = existing_doc_data.get("status", "unknown")
-                return InsertResponse(
-                    status="duplicated",
-                    message=f"File '{safe_filename}' already exists in document storage (Status: {status}).",
-                    track_id="",
-                )
-
-            file_path = doc_manager.input_dir / safe_filename
-            # Check if file already exists in file system
-            if file_path.exists():
-                return InsertResponse(
-                    status="duplicated",
-                    message=f"File '{safe_filename}' already exists in the input directory.",
-                    track_id="",
-                )
-
-            with open(file_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
-
-            track_id = generate_track_id("upload")
-
-            # Add to background tasks and get track_id
-            background_tasks.add_task(pipeline_index_file, rag, file_path, track_id)
-
-            return InsertResponse(
-                status="success",
-                message=f"File '{safe_filename}' uploaded successfully. Processing will continue in background.",
-                track_id=track_id,
-            )
-
-        except Exception as e:
-            logger.error(f"Error /documents/upload: {file.filename}: {str(e)}")
-            logger.error(traceback.format_exc())
-            raise HTTPException(status_code=500, detail=str(e))
+        return await upload_file_to_input_dir(rag, doc_manager, background_tasks, file)
 
     @router.post(
         "/text", response_model=InsertResponse, dependencies=[Depends(combined_auth)]
@@ -231,45 +179,7 @@ def create_document_routes(
         Raises:
             HTTPException: If an error occurs during text processing (500).
         """
-        try:
-            # Check if file_source already exists in doc_status storage
-            if (
-                request.file_source
-                and request.file_source.strip()
-                and request.file_source != "unknown_source"
-            ):
-                existing_doc_data = await rag.doc_status.get_doc_by_file_path(
-                    request.file_source
-                )
-                if existing_doc_data:
-                    # Get document status information for error message
-                    status = existing_doc_data.get("status", "unknown")
-                    return InsertResponse(
-                        status="duplicated",
-                        message=f"File source '{request.file_source}' already exists in document storage (Status: {status}).",
-                        track_id="",
-                    )
-
-            # Generate track_id for text insertion
-            track_id = generate_track_id("insert")
-
-            background_tasks.add_task(
-                pipeline_index_texts,
-                rag,
-                [request.text],
-                file_sources=[request.file_source],
-                track_id=track_id,
-            )
-
-            return InsertResponse(
-                status="success",
-                message="Text successfully received. Processing will continue in background.",
-                track_id=track_id,
-            )
-        except Exception as e:
-            logger.error(f"Error /documents/text: {str(e)}")
-            logger.error(traceback.format_exc())
-            raise HTTPException(status_code=500, detail=str(e))
+        return await insert_single_text(rag, request, background_tasks)
 
     @router.post(
         "/texts",
@@ -295,47 +205,7 @@ def create_document_routes(
         Raises:
             HTTPException: If an error occurs during text processing (500).
         """
-        try:
-            # Check if any file_sources already exist in doc_status storage
-            if request.file_sources:
-                for file_source in request.file_sources:
-                    if (
-                        file_source
-                        and file_source.strip()
-                        and file_source != "unknown_source"
-                    ):
-                        existing_doc_data = await rag.doc_status.get_doc_by_file_path(
-                            file_source
-                        )
-                        if existing_doc_data:
-                            # Get document status information for error message
-                            status = existing_doc_data.get("status", "unknown")
-                            return InsertResponse(
-                                status="duplicated",
-                                message=f"File source '{file_source}' already exists in document storage (Status: {status}).",
-                                track_id="",
-                            )
-
-            # Generate track_id for texts insertion
-            track_id = generate_track_id("insert")
-
-            background_tasks.add_task(
-                pipeline_index_texts,
-                rag,
-                request.texts,
-                file_sources=request.file_sources,
-                track_id=track_id,
-            )
-
-            return InsertResponse(
-                status="success",
-                message="Texts successfully received. Processing will continue in background.",
-                track_id=track_id,
-            )
-        except Exception as e:
-            logger.error(f"Error /documents/texts: {str(e)}")
-            logger.error(traceback.format_exc())
-            raise HTTPException(status_code=500, detail=str(e))
+        return await insert_multiple_texts(rag, request, background_tasks)
 
     @router.delete(
         "", response_model=ClearDocumentsResponse, dependencies=[Depends(combined_auth)]
