@@ -18,6 +18,7 @@ from lightrag.api.app_factory_config import build_app_kwargs
 from lightrag.api.app_lifespan import create_app_lifespan
 from lightrag.api.app_runtime_args import normalize_runtime_args
 from lightrag.api.frontend_build_checker import check_frontend_build
+from lightrag.api.llm_config_cache import LLMConfigCache
 from lightrag.api.query_validation_handlers import (
     create_query_validation_exception_handler,
 )
@@ -58,79 +59,6 @@ webui_description = os.getenv("WEBUI_DESCRIPTION")
 # Initialize config parser
 config = configparser.ConfigParser()
 config.read("config.ini")
-
-class LLMConfigCache:
-    """Smart LLM and Embedding configuration cache class"""
-
-    def __init__(self, args):
-        self.args = args
-
-        # Initialize configurations based on binding conditions
-        self.openai_llm_options = None
-        self.gemini_llm_options = None
-        self.gemini_embedding_options = None
-        self.ollama_llm_options = None
-        self.ollama_embedding_options = None
-
-        # Only initialize and log OpenAI options when using OpenAI-related bindings
-        if args.llm_binding in ["openai", "azure_openai"]:
-            from lightrag.llm.binding_options import OpenAILLMOptions
-
-            self.openai_llm_options = OpenAILLMOptions.options_dict(args)
-            logger.info(f"OpenAI LLM Options: {self.openai_llm_options}")
-
-        if args.llm_binding == "gemini":
-            from lightrag.llm.binding_options import GeminiLLMOptions
-
-            self.gemini_llm_options = GeminiLLMOptions.options_dict(args)
-            logger.info(f"Gemini LLM Options: {self.gemini_llm_options}")
-
-        # Only initialize and log Ollama LLM options when using Ollama LLM binding
-        if args.llm_binding == "ollama":
-            try:
-                from lightrag.llm.binding_options import OllamaLLMOptions
-
-                self.ollama_llm_options = OllamaLLMOptions.options_dict(args)
-                logger.info(f"Ollama LLM Options: {self.ollama_llm_options}")
-            except ImportError:
-                logger.warning(
-                    "OllamaLLMOptions not available, using default configuration"
-                )
-                self.ollama_llm_options = {}
-
-        # Only initialize and log Ollama Embedding options when using Ollama Embedding binding
-        if args.embedding_binding == "ollama":
-            try:
-                from lightrag.llm.binding_options import OllamaEmbeddingOptions
-
-                self.ollama_embedding_options = OllamaEmbeddingOptions.options_dict(
-                    args
-                )
-                logger.info(
-                    f"Ollama Embedding Options: {self.ollama_embedding_options}"
-                )
-            except ImportError:
-                logger.warning(
-                    "OllamaEmbeddingOptions not available, using default configuration"
-                )
-                self.ollama_embedding_options = {}
-
-        # Only initialize and log Gemini Embedding options when using Gemini Embedding binding
-        if args.embedding_binding == "gemini":
-            try:
-                from lightrag.llm.binding_options import GeminiEmbeddingOptions
-
-                self.gemini_embedding_options = GeminiEmbeddingOptions.options_dict(
-                    args
-                )
-                logger.info(
-                    f"Gemini Embedding Options: {self.gemini_embedding_options}"
-                )
-            except ImportError:
-                logger.warning(
-                    "GeminiEmbeddingOptions not available, using default configuration"
-                )
-                self.gemini_embedding_options = {}
 def create_app(args):
     # Check frontend build first and get status
     webui_assets_exist, is_frontend_outdated = check_frontend_build()

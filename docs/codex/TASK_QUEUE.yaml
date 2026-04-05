@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after BA1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after BB1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1468,3 +1468,31 @@ tasks:
       - "Queued after AZ1 root-cause analysis showed the next narrow self-contained seam in create_app() is the runtime argument preflight block for binding support, default hosts, and SSL file validation."
       - "Completed by introducing lightrag/api/app_runtime_args.py for supported-binding checks, default-host filling, and SSL file validation, then rewiring lightrag_server.py to delegate runtime arg normalization through that helper."
       - "Focused regression coverage lives in tests/test_app_runtime_args.py."
+
+  - id: BB1
+    title: "Extract LLMConfigCache from lightrag_server.py"
+    priority: 57
+    status: completed
+    depends_on: [BA1]
+    area: "api"
+    problem_statement: "The FastAPI server entrypoint still defines `LLMConfigCache` inline, so app startup owns binding-option preprocessing and provider-specific logging alongside application assembly."
+    root_cause_hypothesis: "Startup helper extraction has focused on `create_app()` blocks first, but the `LLMConfigCache` class stayed in `lightrag_server.py` because it only had one caller there, so the binding-option cache contract never became its own module."
+    definition_of_done:
+      - "A dedicated helper module owns `LLMConfigCache`"
+      - "`lightrag_server.py` imports that helper instead of defining the cache class inline"
+      - "The existing selective binding-option loading behavior remains unchanged"
+      - "Focused tests cover the extracted cache contract for representative LLM and embedding bindings"
+    validation_commands:
+      - "python -m ruff check lightrag/api/llm_config_cache.py lightrag/api/lightrag_server.py tests/test_llm_config_cache.py"
+      - "python -m pytest tests/test_llm_config_cache.py -q"
+    risk_level: "low"
+    expected_files:
+      - "lightrag/api/llm_config_cache.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_llm_config_cache.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BA1 root-cause analysis showed the next narrow self-contained seam in `lightrag_server.py` is the binding-option preprocessing cache class rather than another tiny inline value assignment."
+      - "Completed by introducing lightrag/api/llm_config_cache.py as the authoritative home for `LLMConfigCache`, then rewiring lightrag_server.py to import that helper instead of defining the cache class inline."
+      - "Focused regression coverage lives in tests/test_llm_config_cache.py."

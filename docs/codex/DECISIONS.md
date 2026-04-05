@@ -1011,3 +1011,19 @@
   - `lightrag_server.py` sheds another self-contained startup/preflight block and moves closer to dependency wiring only.
   - The runtime-arg contract now has focused regression coverage in `tests/test_app_runtime_args.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-065: BB1 moves binding-option preprocessing behind an llm-config-cache helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BA1`, `lightrag/api/lightrag_server.py` still defined `LLMConfigCache` inline even though that class is configuration preprocessing rather than app assembly.
+  - The class owns provider-specific option loading and logging for OpenAI, Gemini, and Ollama bindings, but it only had one caller inside `create_app()`.
+  - Keeping it in the server entrypoint meant the app-factory module still mixed binding-option cache ownership with the larger runtime wiring flow.
+- Decision:
+  - Introduce `lightrag/api/llm_config_cache.py` as the authoritative home for `LLMConfigCache`.
+  - Rewire `lightrag/api/lightrag_server.py` to import the extracted cache helper instead of defining the class inline.
+  - Preserve the existing selective option-loading behavior for representative LLM and embedding bindings without widening this run into broader provider refactors.
+- Impact:
+  - `lightrag_server.py` sheds another self-contained configuration-preprocessing responsibility and moves closer to app assembly plus runtime wiring only.
+  - The extracted cache contract now has focused regression coverage in `tests/test_llm_config_cache.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
