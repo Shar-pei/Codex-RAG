@@ -18,6 +18,7 @@ from lightrag.api.app_factory_config import build_app_kwargs
 from lightrag.api.app_lifespan import create_app_lifespan
 from lightrag.api.app_runtime_args import normalize_runtime_args
 from lightrag.api.app_startup_state import build_app_startup_state
+from lightrag.api.embedding_dimension_policy import apply_embedding_dimension_policy
 from lightrag.api.llm_config_cache import LLMConfigCache
 from lightrag.api.llm_model_factory import build_llm_model_func
 from lightrag.api.llm_model_kwargs import build_llm_model_kwargs
@@ -300,9 +301,6 @@ def create_app(args):
         "EMBEDDING_TIMEOUT", DEFAULT_EMBEDDING_TIMEOUT, int
     )
 
-    # Create embedding function with optimized configuration and max_token_size inheritance
-    import inspect
-
     # Create the EmbeddingFunc instance (now returns complete EmbeddingFunc with max_token_size)
     embedding_func = create_optimized_embedding_function(
         config_cache=config_cache,
@@ -313,36 +311,7 @@ def create_app(args):
         args=args,
     )
 
-    # Get embedding_send_dim from centralized configuration
-    embedding_send_dim = args.embedding_send_dim
-
-    # Check if the underlying function signature has embedding_dim parameter
-    sig = inspect.signature(embedding_func.func)
-    has_embedding_dim_param = "embedding_dim" in sig.parameters
-
-    # Determine send_dimensions value based on binding type
-    # Jina and Gemini REQUIRE dimension parameter (forced to True)
-    # OpenAI and others: controlled by EMBEDDING_SEND_DIM environment variable
-    if args.embedding_binding in ["jina", "gemini"]:
-        # Jina and Gemini APIs require dimension parameter - always send it
-        send_dimensions = has_embedding_dim_param
-        dimension_control = f"forced by {args.embedding_binding.title()} API"
-    else:
-        # For OpenAI and other bindings, respect EMBEDDING_SEND_DIM setting
-        send_dimensions = embedding_send_dim and has_embedding_dim_param
-        if send_dimensions or not embedding_send_dim:
-            dimension_control = "by env var"
-        else:
-            dimension_control = "by not hasparam"
-
-    # Set send_dimensions on the EmbeddingFunc instance
-    embedding_func.send_dimensions = send_dimensions
-
-    logger.info(
-        f"Send embedding dimension: {send_dimensions} {dimension_control} "
-        f"(dimensions={embedding_func.embedding_dim}, has_param={has_embedding_dim_param}, "
-        f"binding={args.embedding_binding})"
-    )
+    apply_embedding_dimension_policy(embedding_func, args)
 
     # Log max_token_size source
     if embedding_func.max_token_size:

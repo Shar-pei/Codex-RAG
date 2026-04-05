@@ -1107,3 +1107,19 @@
   - `lightrag_server.py` sheds another provider-specific setup block and moves closer to app assembly plus runtime wiring only.
   - The rerank setup contract now has focused regression coverage in `tests/test_rerank_model_factory.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-071: BH1 moves embedding send-dim policy behind an embedding-dimension helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BG1`, the embedding block in `lightrag/api/lightrag_server.py` was still large, but the narrowest self-contained seam inside it was the `send_dimensions` policy and its log output.
+  - That policy depends only on the configured embedding binding, the environment toggle, and whether the embedding callable accepts `embedding_dim`.
+  - Keeping it inline meant the app-factory module still owned one more binding-specific policy decision even after the surrounding startup, LLM, and rerank seams had been extracted.
+- Decision:
+  - Introduce `lightrag/api/embedding_dimension_policy.py` as the authoritative home for the embedding `send_dimensions` policy and related logging.
+  - Rewire `lightrag/api/lightrag_server.py` to call `apply_embedding_dimension_policy(...)` instead of deciding the dimension-delivery policy inline.
+  - Preserve the existing forced Jina/Gemini behavior and env-driven fallback behavior without widening this run into the full embedding-factory extraction.
+- Impact:
+  - `lightrag_server.py` sheds another narrow embedding-policy block and moves closer to app assembly plus runtime wiring only.
+  - The extracted dimension-policy contract now has focused regression coverage in `tests/test_embedding_dimension_policy.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.

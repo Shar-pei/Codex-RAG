@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after BG1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after BH1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1636,3 +1636,31 @@ tasks:
       - "Queued after BF1 root-cause analysis showed the next narrow self-contained seam in `create_app()` is the provider-specific rerank setup block rather than the larger embedding function factory."
       - "Completed by introducing lightrag/api/rerank_model_factory.py for rerank provider selection, default arg filling, and wrapper construction, then rewiring lightrag_server.py to consume that helper instead of defining rerank setup inline."
       - "Focused regression coverage lives in tests/test_rerank_model_factory.py."
+
+  - id: BH1
+    title: "Extract embedding send-dim policy from lightrag_server.py"
+    priority: 63
+    status: completed
+    depends_on: [BG1]
+    area: "api"
+    problem_statement: "The FastAPI server entrypoint still decides when to send embedding dimensions inline, so app construction owns binding-specific dimension-delivery policy and related logging."
+    root_cause_hypothesis: "The embedding setup block is still large, but the narrowest self-contained seam inside it is the `send_dimensions` policy: it depends only on the configured binding, the environment toggle, and whether the embedding callable accepts `embedding_dim`, so that policy never became its own helper module."
+    definition_of_done:
+      - "A dedicated helper module owns embedding `send_dimensions` policy and the related logging contract"
+      - "`lightrag_server.py` uses that helper instead of deciding the dimension-delivery policy inline"
+      - "The existing forced Jina/Gemini behavior and env-driven fallback behavior remain unchanged"
+      - "Focused tests cover representative binding and signature combinations"
+    validation_commands:
+      - "python -m ruff check lightrag/api/embedding_dimension_policy.py lightrag/api/lightrag_server.py tests/test_embedding_dimension_policy.py"
+      - "python -m pytest tests/test_embedding_dimension_policy.py -q"
+    risk_level: "low"
+    expected_files:
+      - "lightrag/api/embedding_dimension_policy.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_embedding_dimension_policy.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BG1 root-cause analysis showed the next narrow self-contained seam in `create_app()` is the embedding dimension-delivery policy block rather than the full embedding factory."
+      - "Completed by introducing lightrag/api/embedding_dimension_policy.py for `send_dimensions` policy plus logging, then rewiring lightrag_server.py to apply that helper instead of deciding dimension delivery inline."
+      - "Focused regression coverage lives in tests/test_embedding_dimension_policy.py."
