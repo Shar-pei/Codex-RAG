@@ -216,3 +216,12 @@
 - Impact:
   - The repository is left in a recoverable state with the D2 Web UI simplification committed locally but not confirmed on `origin`.
   - The next run should treat push recovery as the immediate unblock step before taking the next queued task (`E1`).
+  - Additional retries later on 2026-04-05 still failed before any remote update:
+    - `git push origin codex/lightrag` -> `Recv failure: Connection was reset`
+    - `git push --porcelain origin codex/lightrag` -> `Recv failure: Connection was reset`
+  - The branch now remains `ahead 3`, so `E1` should not start until the queued local commits are durable on `origin`.
+  - Root-cause checks in a later continuation show the failure happens before auth or branch negotiation:
+    - `git ls-remote --heads origin` -> `Failed to connect to github.com port 443 after 21113 ms: Could not connect to server`
+    - `git remote show origin` -> `Recv failure: Connection was reset`
+    - `git push --porcelain origin codex/lightrag` -> `Failed to connect to github.com port 443 after 21135 ms: Could not connect to server`
+  - `credential.helper` is still `manager`, so the present blocker is outbound HTTPS connectivity to GitHub rather than missing local credentials.
