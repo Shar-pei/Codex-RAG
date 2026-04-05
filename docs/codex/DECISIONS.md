@@ -630,3 +630,19 @@
   - `graph_routes.py` sheds its largest remaining static documentation block and moves closer to a route-wiring module.
   - Graph route descriptions now have a dedicated home and focused regression coverage without requiring edits to graph runtime behavior.
   - A follow-on task can target runtime helper extraction or other graph router seams instead of continuing to carry long-form docs inline.
+
+## DCR-041: AD1 moves graph mutation commands behind a mutation-command seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AC1`, `lightrag/api/routers/graph_routes.py` still kept its largest non-route runtime block on the write side: entity edit, relation edit, entity create, relation create, and entity merge.
+  - Those handlers own LightRAG command calls, API response shaping, backward-compatible `operation_summary` fallback assembly for entity updates, and HTTP error normalization.
+  - None of that behavior depends on route registration, so keeping it inline continued to make the router responsible for both endpoint composition and mutation orchestration.
+- Decision:
+  - Introduce `lightrag/api/routers/graph_mutation_commands.py` for the graph write-side command helpers.
+  - Reuse and re-export those helpers from `lightrag/api/routers/graph_routes.py` so existing imports remain stable.
+  - Leave the read-side graph queries in `graph_routes.py` for now instead of widening this run into a mixed command/query split.
+- Impact:
+  - `graph_routes.py` sheds its remaining write-side orchestration block and moves closer to a route-focused module.
+  - Graph mutation behavior now has focused regression coverage for entity-update fallback summaries, validation-error mapping, and merge success messaging without importing the full router.
+  - A follow-on task can target the remaining read-side graph query helpers separately from the graph mutation command seam.

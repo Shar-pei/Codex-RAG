@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "AC1 completed by extracting long-form graph route descriptions out of graph_routes.py, reducing the largest active graph router's remaining static documentation bulk"
+  current_focus: "AD1 completed by extracting graph mutation command helpers out of graph_routes.py, reducing the largest active graph router's remaining write-side orchestration"
 
 tasks:
   - id: A0
@@ -818,3 +818,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving the longest graph route descriptions into lightrag/api/routers/graph_route_descriptions.py while keeping graph_routes.py as the compatibility import surface."
+
+  - id: AD1
+    title: "Extract graph mutation command helpers from graph_routes.py"
+    priority: 33
+    status: completed
+    depends_on: [AC1]
+    area: "api"
+    problem_statement: "The graph API router still owns write-side command logic for entity edit, relation edit, entity create, relation create, and entity merge alongside route registration."
+    root_cause_hypothesis: "Graph mutation endpoints accumulated inline in graph_routes.py because they were added directly next to their routes, even though their behavior depends on LightRAG command calls and API-facing error normalization rather than route state."
+    definition_of_done:
+      - "Graph mutation command helpers live in a dedicated module"
+      - "graph_routes.py preserves the helper import surface through compatibility aliases"
+      - "Focused tests cover helper re-exports plus key behaviors such as entity-update fallback summaries, validation error mapping, and merge success messages"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/graph_routes.py lightrag/api/routers/graph_mutation_commands.py tests/test_graph_mutation_commands.py"
+      - "python -m pytest tests/test_graph_mutation_commands.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/graph_routes.py"
+      - "lightrag/api/routers/graph_mutation_commands.py"
+      - "tests/test_graph_mutation_commands.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving graph entity/relation create-edit and entity-merge command helpers into lightrag/api/routers/graph_mutation_commands.py while keeping graph_routes.py as the compatibility import surface."

@@ -14,6 +14,13 @@ from lightrag.api.routers.graph_models import (
     RelationCreateRequest as _RelationCreateRequest,
     RelationUpdateRequest as _RelationUpdateRequest,
 )
+from lightrag.api.routers.graph_mutation_commands import (
+    create_entity_response as _create_entity_response,
+    create_relation_response as _create_relation_response,
+    merge_entities_response as _merge_entities_response,
+    update_entity_response as _update_entity_response,
+    update_relation_response as _update_relation_response,
+)
 from lightrag.api.routers.graph_route_descriptions import (
     ENTITY_CREATE_ROUTE_DESCRIPTION as _ENTITY_CREATE_ROUTE_DESCRIPTION,
     ENTITY_EDIT_ROUTE_DESCRIPTION as _ENTITY_EDIT_ROUTE_DESCRIPTION,
@@ -37,6 +44,11 @@ ENTITY_EDIT_ROUTE_DESCRIPTION = _ENTITY_EDIT_ROUTE_DESCRIPTION
 ENTITY_CREATE_ROUTE_DESCRIPTION = _ENTITY_CREATE_ROUTE_DESCRIPTION
 RELATION_CREATE_ROUTE_DESCRIPTION = _RELATION_CREATE_ROUTE_DESCRIPTION
 ENTITY_MERGE_ROUTE_DESCRIPTION = _ENTITY_MERGE_ROUTE_DESCRIPTION
+update_entity_response = _update_entity_response
+update_relation_response = _update_relation_response
+create_entity_response = _create_entity_response
+create_relation_response = _create_relation_response
+merge_entities_response = _merge_entities_response
 
 
 def create_graph_routes(rag, api_key: Optional[str] = None):
@@ -167,60 +179,7 @@ def create_graph_routes(rag, api_key: Optional[str] = None):
         description=ENTITY_EDIT_ROUTE_DESCRIPTION,
     )
     async def update_entity(request: EntityUpdateRequest):
-        try:
-            result = await rag.aedit_entity(
-                entity_name=request.entity_name,
-                updated_data=request.updated_data,
-                allow_rename=request.allow_rename,
-                allow_merge=request.allow_merge,
-            )
-
-            # Extract operation_summary from result, with fallback for backward compatibility
-            operation_summary = result.get(
-                "operation_summary",
-                {
-                    "merged": False,
-                    "merge_status": "not_attempted",
-                    "merge_error": None,
-                    "operation_status": "success",
-                    "target_entity": None,
-                    "final_entity": request.updated_data.get(
-                        "entity_name", request.entity_name
-                    ),
-                    "renamed": request.updated_data.get(
-                        "entity_name", request.entity_name
-                    )
-                    != request.entity_name,
-                },
-            )
-
-            # Separate entity data from operation_summary for clean response
-            entity_data = dict(result)
-            entity_data.pop("operation_summary", None)
-
-            # Generate appropriate response message based on merge status
-            response_message = (
-                f"Entity merged successfully into '{operation_summary['final_entity']}'"
-                if operation_summary.get("merged")
-                else "Entity updated successfully"
-            )
-            return {
-                "status": "success",
-                "message": response_message,
-                "data": entity_data,
-                "operation_summary": operation_summary,
-            }
-        except ValueError as ve:
-            logger.error(
-                f"Validation error updating entity '{request.entity_name}': {str(ve)}"
-            )
-            raise HTTPException(status_code=400, detail=str(ve))
-        except Exception as e:
-            logger.error(f"Error updating entity '{request.entity_name}': {str(e)}")
-            logger.error(traceback.format_exc())
-            raise HTTPException(
-                status_code=500, detail=f"Error updating entity: {str(e)}"
-            )
+        return await update_entity_response(rag, request)
 
     @router.post("/graph/relation/edit", dependencies=[Depends(combined_auth)])
     async def update_relation(request: RelationUpdateRequest):
@@ -232,30 +191,7 @@ def create_graph_routes(rag, api_key: Optional[str] = None):
         Returns:
             Dict: Updated relation information
         """
-        try:
-            result = await rag.aedit_relation(
-                source_entity=request.source_id,
-                target_entity=request.target_id,
-                updated_data=request.updated_data,
-            )
-            return {
-                "status": "success",
-                "message": "Relation updated successfully",
-                "data": result,
-            }
-        except ValueError as ve:
-            logger.error(
-                f"Validation error updating relation between '{request.source_id}' and '{request.target_id}': {str(ve)}"
-            )
-            raise HTTPException(status_code=400, detail=str(ve))
-        except Exception as e:
-            logger.error(
-                f"Error updating relation between '{request.source_id}' and '{request.target_id}': {str(e)}"
-            )
-            logger.error(traceback.format_exc())
-            raise HTTPException(
-                status_code=500, detail=f"Error updating relation: {str(e)}"
-            )
+        return await update_relation_response(rag, request)
 
     @router.post(
         "/graph/entity/create",
@@ -263,33 +199,7 @@ def create_graph_routes(rag, api_key: Optional[str] = None):
         description=ENTITY_CREATE_ROUTE_DESCRIPTION,
     )
     async def create_entity(request: EntityCreateRequest):
-        try:
-            # Use the proper acreate_entity method which handles:
-            # - Graph lock for concurrency
-            # - Vector embedding creation in entities_vdb
-            # - Metadata population and defaults
-            # - Index consistency via _edit_entity_done
-            result = await rag.acreate_entity(
-                entity_name=request.entity_name,
-                entity_data=request.entity_data,
-            )
-
-            return {
-                "status": "success",
-                "message": f"Entity '{request.entity_name}' created successfully",
-                "data": result,
-            }
-        except ValueError as ve:
-            logger.error(
-                f"Validation error creating entity '{request.entity_name}': {str(ve)}"
-            )
-            raise HTTPException(status_code=400, detail=str(ve))
-        except Exception as e:
-            logger.error(f"Error creating entity '{request.entity_name}': {str(e)}")
-            logger.error(traceback.format_exc())
-            raise HTTPException(
-                status_code=500, detail=f"Error creating entity: {str(e)}"
-            )
+        return await create_entity_response(rag, request)
 
     @router.post(
         "/graph/relation/create",
@@ -297,37 +207,7 @@ def create_graph_routes(rag, api_key: Optional[str] = None):
         description=RELATION_CREATE_ROUTE_DESCRIPTION,
     )
     async def create_relation(request: RelationCreateRequest):
-        try:
-            # Use the proper acreate_relation method which handles:
-            # - Graph lock for concurrency
-            # - Entity existence validation
-            # - Duplicate relation checks
-            # - Vector embedding creation in relationships_vdb
-            # - Index consistency via _edit_relation_done
-            result = await rag.acreate_relation(
-                source_entity=request.source_entity,
-                target_entity=request.target_entity,
-                relation_data=request.relation_data,
-            )
-
-            return {
-                "status": "success",
-                "message": f"Relation created successfully between '{request.source_entity}' and '{request.target_entity}'",
-                "data": result,
-            }
-        except ValueError as ve:
-            logger.error(
-                f"Validation error creating relation between '{request.source_entity}' and '{request.target_entity}': {str(ve)}"
-            )
-            raise HTTPException(status_code=400, detail=str(ve))
-        except Exception as e:
-            logger.error(
-                f"Error creating relation between '{request.source_entity}' and '{request.target_entity}': {str(e)}"
-            )
-            logger.error(traceback.format_exc())
-            raise HTTPException(
-                status_code=500, detail=f"Error creating relation: {str(e)}"
-            )
+        return await create_relation_response(rag, request)
 
     @router.post(
         "/graph/entities/merge",
@@ -335,28 +215,6 @@ def create_graph_routes(rag, api_key: Optional[str] = None):
         description=ENTITY_MERGE_ROUTE_DESCRIPTION,
     )
     async def merge_entities(request: EntityMergeRequest):
-        try:
-            result = await rag.amerge_entities(
-                source_entities=request.entities_to_change,
-                target_entity=request.entity_to_change_into,
-            )
-            return {
-                "status": "success",
-                "message": f"Successfully merged {len(request.entities_to_change)} entities into '{request.entity_to_change_into}'",
-                "data": result,
-            }
-        except ValueError as ve:
-            logger.error(
-                f"Validation error merging entities {request.entities_to_change} into '{request.entity_to_change_into}': {str(ve)}"
-            )
-            raise HTTPException(status_code=400, detail=str(ve))
-        except Exception as e:
-            logger.error(
-                f"Error merging entities {request.entities_to_change} into '{request.entity_to_change_into}': {str(e)}"
-            )
-            logger.error(traceback.format_exc())
-            raise HTTPException(
-                status_code=500, detail=f"Error merging entities: {str(e)}"
-            )
+        return await merge_entities_response(rag, request)
 
     return router
