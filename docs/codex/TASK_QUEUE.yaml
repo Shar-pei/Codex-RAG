@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "CB1 is now the highest-priority pending task: reduce `lightrag_server.py` to pure bootstrap-state and compatibility re-exports after CA1 moved the last wrapper definitions behind a helper module"
+  current_focus: "CC1 is now the highest-priority pending task: extract Gunicorn dependency bootstrap checking from `run_with_gunicorn.py` after CB1 reduced `lightrag_server.py` to a pure compatibility re-export module"
 
 tasks:
   - id: A0
@@ -2200,7 +2200,7 @@ tasks:
   - id: CB1
     title: "Collapse lightrag_server.py to pure compatibility re-exports"
     priority: 83
-    status: pending
+    status: completed
     depends_on: [CA1]
     area: "api"
     problem_statement: "After `CA1`, `lightrag_server.py` no longer defines wrapper functions, but it still names local compatibility globals for bootstrap state instead of converging on a minimal re-export-only module."
@@ -2221,3 +2221,30 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Queued after CA1 root-cause analysis showed the remaining work in `lightrag_server.py` is the last aliasing-only compatibility layer rather than any owned behavior."
+      - "Completed by replacing the local bootstrap-state aliasing in `lightrag_server.py` with direct imports and locking the remaining compatibility surface in `tests/test_lightrag_server_exports.py`."
+
+  - id: CC1
+    title: "Extract Gunicorn dependency bootstrap checking from run_with_gunicorn.py"
+    priority: 84
+    status: pending
+    depends_on: [CB1]
+    area: "api"
+    problem_statement: "With `lightrag_server.py` reduced to a pure compatibility module, `lightrag/api/run_with_gunicorn.py` now stands out as the next API entrypoint hotspot because it still owns an inline required-package bootstrap loop alongside broader Gunicorn startup logic."
+    root_cause_hypothesis: "The Gunicorn entrypoint evolved separately from the single-process server path, so it never received the same dependency-bootstrap extraction that `lightrag_server.py` already gained."
+    definition_of_done:
+      - "A dedicated helper owns the Gunicorn required-package bootstrap check"
+      - "`run_with_gunicorn.py` delegates dependency bootstrap instead of enumerating and installing packages inline"
+      - "The existing Gunicorn required-package list and install-on-miss behavior remain unchanged"
+      - "Focused tests cover representative installed and missing package flows for the Gunicorn path"
+    validation_commands:
+      - "python -m ruff check lightrag/api/run_with_gunicorn.py lightrag/api/gunicorn_dependency_bootstrap.py tests/test_gunicorn_dependency_bootstrap.py"
+      - "python -m pytest tests/test_gunicorn_dependency_bootstrap.py -q"
+    risk_level: "low"
+    expected_files:
+      - "lightrag/api/run_with_gunicorn.py"
+      - "lightrag/api/gunicorn_dependency_bootstrap.py"
+      - "tests/test_gunicorn_dependency_bootstrap.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after CB1 root-cause analysis showed the next clean API-entrypoint seam in `run_with_gunicorn.py` is the inline dependency bootstrap loop rather than the larger Gunicorn lifecycle flow."

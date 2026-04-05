@@ -1427,3 +1427,19 @@
   - `lightrag_server.py` now acts as a thinner compatibility facade over dedicated bootstrap-state and export helpers.
   - The extracted seam now has focused regression coverage for wrapper forwarding and default `get_application()` behavior in `tests/test_entrypoint_exports.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-091: CB1 collapses lightrag_server.py to direct compatibility re-exports
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `CA1`, `lightrag/api/lightrag_server.py` no longer owned wrapper behavior, but it still created one last alias-only layer by assigning `pm` and `config` from `entrypoint_bootstrap_state`.
+  - That aliasing added no behavior and kept the compatibility module from converging on a pure re-export surface.
+  - The remaining compatibility contract was already fully expressed by the extracted bootstrap-state module, the extracted wrapper-export module, and the existing public names.
+- Decision:
+  - Rewire `lightrag/api/lightrag_server.py` to import `pm` and `config` directly from `entrypoint_bootstrap_state` instead of reassigning them locally.
+  - Keep `__all__` as the explicit compatibility surface so the module remains self-describing while avoiding local alias-only state.
+  - Validate the compatibility module through direct export-surface tests instead of re-running deeper wrapper or bootstrap behavior suites.
+- Impact:
+  - `lightrag_server.py` is reduced to a pure compatibility re-export module plus the `__main__` guard.
+  - Focused regression coverage now locks the remaining public export surface in `tests/test_lightrag_server_exports.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
