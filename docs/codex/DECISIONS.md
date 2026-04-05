@@ -409,3 +409,19 @@
   - `document_routes.py` moves closer to a pure route-composition layer instead of embedding another storage lifecycle workflow.
   - The clear-documents behavior can now be tested directly for active-storage handling and top-level-only file cleanup without importing the full routing module.
   - Follow-on API cleanup can focus on route-local status and query endpoints instead of storage-clearing internals.
+
+## DCR-027: P1 moves pipeline control behavior behind a pipeline-control seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `O1`, `lightrag/api/routers/document_routes.py` still embedded three pipeline-control behaviors: shared pipeline status reads, failed-document reprocessing startup, and cancellation flag updates.
+  - Those code paths depend on `LightRAG`, shared storage state, and FastAPI background task scheduling, but they do not depend on route-local request parsing or response wiring.
+  - The status endpoint also owned two normalization rules that are easy to regress when left inline: converting update flags to plain booleans and truncating long history logs to the latest 1000 messages.
+- Decision:
+  - Introduce `lightrag/api/routers/document_pipeline_control.py` for `get_pipeline_status_response(...)`, `start_failed_document_reprocessing(...)`, and `request_pipeline_cancellation(...)`.
+  - Import those helpers back into `lightrag/api/routers/document_routes.py` so the router stays the compatibility surface for extracted document helpers.
+  - Keep the remaining document listing and status-query endpoints in `document_routes.py` for now instead of widening this run into every read-only document query path.
+- Impact:
+  - `document_routes.py` sheds another cluster of shared-state orchestration and moves closer to pure endpoint composition.
+  - Pipeline-control behavior now has direct regression tests for history truncation, background-task startup, and cancellation flag updates without importing the full router.
+  - A later follow-on task can target the remaining read-only document status/query endpoints as a separate seam.

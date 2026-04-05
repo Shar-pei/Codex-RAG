@@ -35,6 +35,11 @@ from lightrag.api.routers.document_manager import (
     DocumentManager,
     sanitize_filename,
 )
+from lightrag.api.routers.document_pipeline_control import (
+    get_pipeline_status_response as _get_pipeline_status_response,
+    request_pipeline_cancellation as _request_pipeline_cancellation,
+    start_failed_document_reprocessing as _start_failed_document_reprocessing,
+)
 from lightrag.api.routers.document_operation_models import (
     CancelPipelineResponse,
     ClearCacheRequest,
@@ -71,6 +76,9 @@ pipeline_index_texts = _pipeline_index_texts
 run_scanning_process = _run_scanning_process
 background_delete_documents = _background_delete_documents
 clear_documents_pipeline = _clear_documents_pipeline
+get_pipeline_status_response = _get_pipeline_status_response
+start_failed_document_reprocessing = _start_failed_document_reprocessing
+request_pipeline_cancellation = _request_pipeline_cancellation
 
 
 router = APIRouter(
@@ -366,76 +374,7 @@ def create_document_routes(
         Raises:
             HTTPException: If an error occurs while retrieving pipeline status (500)
         """
-        try:
-            from lightrag.kg.shared_storage import (
-                get_namespace_data,
-                get_namespace_lock,
-                get_all_update_flags_status,
-            )
-
-            pipeline_status = await get_namespace_data(
-                "pipeline_status", workspace=rag.workspace
-            )
-            pipeline_status_lock = get_namespace_lock(
-                "pipeline_status", workspace=rag.workspace
-            )
-
-            # Get update flags status for all namespaces
-            update_status = await get_all_update_flags_status(workspace=rag.workspace)
-
-            # Convert MutableBoolean objects to regular boolean values
-            processed_update_status = {}
-            for namespace, flags in update_status.items():
-                processed_flags = []
-                for flag in flags:
-                    # Handle both multiprocess and single process cases
-                    if hasattr(flag, "value"):
-                        processed_flags.append(bool(flag.value))
-                    else:
-                        processed_flags.append(bool(flag))
-                processed_update_status[namespace] = processed_flags
-
-            async with pipeline_status_lock:
-                # Convert to regular dict if it's a Manager.dict
-                status_dict = dict(pipeline_status)
-
-            # Add processed update_status to the status dictionary
-            status_dict["update_status"] = processed_update_status
-
-            # Convert history_messages to a regular list if it's a Manager.list
-            # and limit to latest 1000 entries with truncation message if needed
-            if "history_messages" in status_dict:
-                history_list = list(status_dict["history_messages"])
-                total_count = len(history_list)
-
-                if total_count > 1000:
-                    # Calculate truncated message count
-                    truncated_count = total_count - 1000
-
-                    # Take only the latest 1000 messages
-                    latest_messages = history_list[-1000:]
-
-                    # Add truncation message at the beginning
-                    truncation_message = (
-                        f"[Truncated history messages: {truncated_count}/{total_count}]"
-                    )
-                    status_dict["history_messages"] = [
-                        truncation_message
-                    ] + latest_messages
-                else:
-                    # No truncation needed, return all messages
-                    status_dict["history_messages"] = history_list
-
-            # Ensure job_start is properly formatted as a string with timezone information
-            if "job_start" in status_dict and status_dict["job_start"]:
-                # Use format_datetime to ensure consistent formatting
-                status_dict["job_start"] = format_datetime(status_dict["job_start"])
-
-            return PipelineStatusResponse(**status_dict)
-        except Exception as e:
-            logger.error(f"Error getting pipeline status: {str(e)}")
-            logger.error(traceback.format_exc())
-            raise HTTPException(status_code=500, detail=str(e))
+        return await get_pipeline_status_response(rag)
 
     # TODO: Deprecated, use /documents/paginated instead
     @router.get(
@@ -940,26 +879,7 @@ def create_document_routes(
         Raises:
             HTTPException: If an error occurs while initiating reprocessing (500).
         """
-        try:
-            # Generate track_id with "retry" prefix for retry operation
-            track_id = generate_track_id("retry")
-
-            # Start the reprocessing in the background
-            background_tasks.add_task(rag.apipeline_process_enqueue_documents)
-            logger.info(
-                f"Reprocessing of failed documents initiated with track_id: {track_id}"
-            )
-
-            return ReprocessResponse(
-                status="reprocessing_started",
-                message="Reprocessing of failed documents has been initiated in background",
-                track_id=track_id,
-            )
-
-        except Exception as e:
-            logger.error(f"Error initiating reprocessing of failed documents: {str(e)}")
-            logger.error(traceback.format_exc())
-            raise HTTPException(status_code=500, detail=str(e))
+        return await start_failed_document_reprocessing(rag, background_tasks)
 
     @router.post(
         "/cancel_pipeline",
@@ -987,41 +907,6 @@ def create_document_routes(
         Raises:
             HTTPException: If an error occurs while setting cancellation flag (500).
         """
-        try:
-            from lightrag.kg.shared_storage import (
-                get_namespace_data,
-                get_namespace_lock,
-            )
-
-            pipeline_status = await get_namespace_data(
-                "pipeline_status", workspace=rag.workspace
-            )
-            pipeline_status_lock = get_namespace_lock(
-                "pipeline_status", workspace=rag.workspace
-            )
-
-            async with pipeline_status_lock:
-                if not pipeline_status.get("busy", False):
-                    return CancelPipelineResponse(
-                        status="not_busy",
-                        message="Pipeline is not currently running. No cancellation needed.",
-                    )
-
-                # Set cancellation flag
-                pipeline_status["cancellation_requested"] = True
-                cancel_msg = "Pipeline cancellation requested by user"
-                logger.info(cancel_msg)
-                pipeline_status["latest_message"] = cancel_msg
-                pipeline_status["history_messages"].append(cancel_msg)
-
-            return CancelPipelineResponse(
-                status="cancellation_requested",
-                message="Pipeline cancellation has been requested. Documents will be marked as FAILED.",
-            )
-
-        except Exception as e:
-            logger.error(f"Error requesting pipeline cancellation: {str(e)}")
-            logger.error(traceback.format_exc())
-            raise HTTPException(status_code=500, detail=str(e))
+        return await request_pipeline_cancellation(rag)
 
     return router

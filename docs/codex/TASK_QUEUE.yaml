@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "O1 completed by extracting the clear-documents workflow out of document_routes.py, leaving the document API router closer to a pure route-composition layer"
+  current_focus: "P1 completed by extracting pipeline control helpers out of document_routes.py, leaving the document API router with less shared-state orchestration logic"
 
 tasks:
   - id: A0
@@ -467,3 +467,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving the clear-documents storage-and-filesystem workflow into lightrag/api/routers/document_clear_pipeline.py while keeping document_routes.py as the compatibility import surface."
+
+  - id: P1
+    title: "Extract document pipeline control helpers from document_routes.py"
+    priority: 19
+    status: completed
+    depends_on: [O1]
+    area: "api"
+    problem_statement: "The document API router still owns pipeline status reads, failed-document reprocessing startup, and pipeline cancellation logic alongside route definitions."
+    root_cause_hypothesis: "Pipeline control behavior accumulated inline in document_routes.py because these endpoints were added next to the routes that trigger them, even though the logic depends on shared pipeline state and background task orchestration rather than route state."
+    definition_of_done:
+      - "Pipeline status, reprocess, and cancellation helpers live in a dedicated module"
+      - "document_routes.py preserves the extracted helper import surface through compatibility aliases"
+      - "Focused tests cover helper re-exports plus key pipeline-control behaviors such as history truncation and cancellation flag updates"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/document_routes.py lightrag/api/routers/document_pipeline_control.py tests/test_document_pipeline_control.py"
+      - "python -m pytest tests/test_document_pipeline_control.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/document_routes.py"
+      - "lightrag/api/routers/document_pipeline_control.py"
+      - "tests/test_document_pipeline_control.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving pipeline-status reads, failed-document reprocessing startup, and cancellation logic into lightrag/api/routers/document_pipeline_control.py while keeping document_routes.py as the compatibility import surface."
