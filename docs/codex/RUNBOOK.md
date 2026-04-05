@@ -25,6 +25,7 @@ If you want the shortest possible restart instruction, use:
    - `docs/codex/TASK_QUEUE.yaml`
    - `docs/codex/DECISIONS.md`
    - `docs/codex/CONTRACTS.md` when external surfaces change
+   - `docs/codex/ACCEPTANCE_REPORT.md` and `docs/codex/benchmarks/*` when `--profile phase-a` is the task gate
 9. Commit only the intended files.
 10. Push the current `codex/*` branch.
 
@@ -39,6 +40,13 @@ If you want the shortest possible restart instruction, use:
 ## Web UI Command Note
 - Use `bun install --cwd lightrag_webui --frozen-lockfile` for install validation.
 - Use `bun --cwd lightrag_webui run build` for the production build validation; `bun run build --cwd lightrag_webui` is parsed as a different script shape by Bun in this environment.
+
+## Acceptance Artifacts
+- `python scripts/quality_gate.py --profile phase-a` now regenerates:
+  - `docs/codex/ACCEPTANCE_REPORT.md`
+  - `docs/codex/benchmarks/phase_a_latest.json`
+  - `docs/codex/benchmarks/phase_a_history.jsonl`
+- Use those files to compare benchmark durations across iterations before declaring the optimization loop complete.
 
 ## What Automation Must Not Do
 - push directly to `main`

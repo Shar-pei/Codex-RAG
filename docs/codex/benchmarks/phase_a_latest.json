@@ -1,0 +1,75 @@
+{
+  "profile": "phase-a",
+  "generated_at": "2026-04-05T04:44:17.221972+00:00",
+  "total_duration_seconds": 36.0,
+  "steps": [
+    {
+      "name": "python-ruff",
+      "command": [
+        "D:\\Path\\IDE\\anaconda\\python.exe",
+        "-m",
+        "ruff",
+        "check",
+        "scripts",
+        "tests/test_chunking.py",
+        "tests/test_write_json_optimization.py"
+      ],
+      "cwd": "D:\\MyCodeX\\MyRAG\\LightRAG",
+      "started_at": "2026-04-05T04:44:17.221972+00:00",
+      "duration_seconds": 0.457
+    },
+    {
+      "name": "python-version",
+      "command": [
+        "D:\\Path\\IDE\\anaconda\\python.exe",
+        "-c",
+        "import lightrag; print(lightrag.__version__)"
+      ],
+      "cwd": "D:\\MyCodeX\\MyRAG\\LightRAG",
+      "started_at": "2026-04-05T04:44:17.680315+00:00",
+      "duration_seconds": 2.992
+    },
+    {
+      "name": "python-pytest",
+      "command": [
+        "D:\\Path\\IDE\\anaconda\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_chunking.py",
+        "tests/test_write_json_optimization.py",
+        "-m",
+        "not integration"
+      ],
+      "cwd": "D:\\MyCodeX\\MyRAG\\LightRAG",
+      "started_at": "2026-04-05T04:44:20.673066+00:00",
+      "duration_seconds": 2.275
+    },
+    {
+      "name": "frontend-install",
+      "command": [
+        "bun",
+        "install",
+        "--frozen-lockfile"
+      ],
+      "cwd": "D:\\MyCodeX\\MyRAG\\LightRAG\\lightrag_webui",
+      "started_at": "2026-04-05T04:44:22.954734+00:00",
+      "duration_seconds": 5.323
+    },
+    {
+      "name": "frontend-build",
+      "command": [
+        "bun",
+        "run",
+        "build"
+      ],
+      "cwd": "D:\\MyCodeX\\MyRAG\\LightRAG\\lightrag_webui",
+      "started_at": "2026-04-05T04:44:28.277414+00:00",
+      "duration_seconds": 24.944
+    }
+  ],
+  "git": {
+    "branch": "codex/lightrag",
+    "commit": "a9a71f97e0461a65fb2b8cf859e94e6a8f4b4f21",
+    "tracked_clean": false
+  }
+}

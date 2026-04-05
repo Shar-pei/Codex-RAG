@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "origin has been switched to SSH, but push is still blocked because GitHub does not authorize the existing local key; E1 stays pending until codex/lightrag is durable on origin"
+  current_focus: "E1 completed via generated Phase A benchmark artifacts and acceptance reporting; Phase A optimization loop is closed on codex/lightrag"
 
 tasks:
   - id: A0
@@ -182,7 +182,7 @@ tasks:
   - id: E1
     title: "Add performance benchmark harness and final acceptance report"
     priority: 8
-    status: pending
+    status: completed
     depends_on: [D2]
     area: "performance"
     problem_statement: "The repo does not yet have a durable benchmark and acceptance reporting loop for the optimized architecture."
@@ -200,3 +200,5 @@ tasks:
       - "scripts/*"
     notes:
       - "This task closes the optimization program, not just a single code change."
+      - "Completed by extending scripts/quality_gate.py so the phase-a profile measures each baseline command, writes `docs/codex/benchmarks/phase_a_latest.json`, appends `docs/codex/benchmarks/phase_a_history.jsonl`, and regenerates `docs/codex/ACCEPTANCE_REPORT.md`."
+      - "Validation ran through `python scripts/quality_gate.py --profile phase-a`, which passed with the generated artifacts recorded from the current branch tip."

@@ -30,6 +30,10 @@ Every task selected from the task queue must satisfy all applicable rules:
   - `bun --cwd lightrag_webui run build`
 - Combined Phase A baseline:
   - `python scripts/quality_gate.py --profile phase-a`
+  - outputs:
+    - `docs/codex/ACCEPTANCE_REPORT.md`
+    - `docs/codex/benchmarks/phase_a_latest.json`
+    - `docs/codex/benchmarks/phase_a_history.jsonl`
 
 ## Future Full-Repo Target
 These are not yet the bootstrap gate, but they are the direction for later phases:
@@ -58,6 +62,7 @@ These are not yet the bootstrap gate, but they are the direction for later phase
 ### Final Release Gate
 - CI is green
 - the agreed test matrix passes
+- the latest Phase A acceptance report and benchmark artifacts are regenerated from the current branch tip
 - no runtime artifacts that should be ignored are committed
 - critical module boundaries are understandable without archaeology
 - there is no obvious duplicate implementation for the same responsibility

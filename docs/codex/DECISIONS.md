@@ -234,3 +234,19 @@
     - `remote.origin.url` -> `git@github.com:Shar-pei/Codex-RAG.git`
     - `git push --porcelain origin codex/lightrag` still fails immediately with `Permission denied (publickey)`
   - The remaining unblock step is no longer transport selection; it is authorizing the existing public key on GitHub or loading a different authorized SSH identity.
+
+## DCR-016: E1 closes Phase A with generated benchmark artifacts and an acceptance report
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - `scripts/quality_gate.py --profile phase-a` already executed the baseline validation commands, but it behaved like a fire-and-forget runner.
+  - `E1` required durable benchmark commands, comparable performance results across iterations, and final acceptance notes in-repo.
+  - Without generated artifacts, successful validation runs left no stable output for later comparisons or release sign-off.
+- Decision:
+  - Extend `scripts/quality_gate.py` so the `phase-a` profile times each existing baseline command instead of introducing a separate benchmark command surface.
+  - Write the latest timed result to `docs/codex/benchmarks/phase_a_latest.json`, append historical runs to `docs/codex/benchmarks/phase_a_history.jsonl`, and regenerate `docs/codex/ACCEPTANCE_REPORT.md` from the same data.
+  - Keep the `python` and `frontend` profiles unchanged so the narrowest new behavior only affects the final acceptance profile.
+- Impact:
+  - Phase A validation now leaves behind a reproducible acceptance note plus machine-readable benchmark history.
+  - Later runs can compare command timings directly from the repository instead of reconstructing them from terminal logs.
+  - `E1` can close without widening scope beyond the already accepted Phase A validation commands.
