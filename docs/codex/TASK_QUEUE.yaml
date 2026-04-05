@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after BD1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after BE1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1552,3 +1552,31 @@ tasks:
       - "Queued after BC1 root-cause analysis showed the next narrow self-contained seam in `create_app()` is the binding-specific `llm_model_kwargs` builder rather than the larger LLM function factory block."
       - "Completed by introducing lightrag/api/llm_model_kwargs.py for binding-specific `llm_model_kwargs` assembly, then rewiring lightrag_server.py to call that helper instead of defining the builder inline."
       - "Focused regression coverage lives in tests/test_llm_model_kwargs.py."
+
+  - id: BE1
+    title: "Extract the LLM model function factory from lightrag_server.py"
+    priority: 60
+    status: completed
+    depends_on: [BD1]
+    area: "api"
+    problem_statement: "The FastAPI server entrypoint still defines provider-specific LLM wrapper builders plus `create_llm_model_func()` inline, so app construction owns LLM dispatch and wrapper policy alongside runtime wiring."
+    root_cause_hypothesis: "Previous extractions removed several startup seams first, but the LLM function factory stayed inside `create_app()` because it closes over `config_cache`, `args`, `llm_timeout`, and the Bedrock callable, so the provider-specific LLM dispatch contract never became its own helper module."
+    definition_of_done:
+      - "A dedicated helper module owns provider-specific LLM function factory dispatch"
+      - "`lightrag_server.py` uses that helper instead of defining the LLM function factory inline"
+      - "The existing OpenAI-compatible timeout/config merge, Gemini generation-config behavior, and Bedrock pass-through remain unchanged"
+      - "Focused tests cover representative LLM wrapper and dispatch behavior at the extracted seam"
+    validation_commands:
+      - "python -m ruff check lightrag/api/llm_model_factory.py lightrag/api/lightrag_server.py tests/test_llm_model_factory.py"
+      - "python -m pytest tests/test_llm_model_factory.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/llm_model_factory.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_llm_model_factory.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BD1 root-cause analysis showed the next narrow self-contained seam in `create_app()` is the provider-specific LLM function factory block rather than the larger embedding or rerank setup."
+      - "Completed by introducing lightrag/api/llm_model_factory.py for provider-specific LLM wrapper builders plus dispatch, then rewiring lightrag_server.py to consume that helper instead of defining the factory inline."
+      - "Focused regression coverage lives in tests/test_llm_model_factory.py."

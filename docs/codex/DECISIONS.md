@@ -1059,3 +1059,19 @@
   - `lightrag_server.py` sheds another narrow provider-specific configuration branch and moves closer to app assembly plus runtime wiring only.
   - The extracted kwargs-builder contract now has focused regression coverage in `tests/test_llm_model_kwargs.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-068: BE1 moves provider-specific llm_model_func dispatch behind an llm-model-factory helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BD1`, `lightrag/api/lightrag_server.py` still owned the provider-specific LLM wrapper builders plus `create_llm_model_func()` dispatch.
+  - That block is self-contained around `config_cache`, `args`, `llm_timeout`, and the local Bedrock callable, but it remained nested inside `create_app()`.
+  - The extracted tests also confirmed a subtle constraint for this run: the OpenAI-compatible wrapper's current keyword-extraction path should be preserved as-is instead of being opportunistically changed while extracting the seam.
+- Decision:
+  - Introduce `lightrag/api/llm_model_factory.py` as the authoritative home for provider-specific LLM wrapper builders plus `build_llm_model_func(...)` dispatch.
+  - Rewire `lightrag/api/lightrag_server.py` to call that helper instead of defining the LLM model factory inline.
+  - Preserve the existing OpenAI-compatible timeout/config merge, Gemini `generation_config` injection, and Bedrock pass-through behavior without widening this run into a behavior-change fix.
+- Impact:
+  - `lightrag_server.py` sheds another provider-specific dispatch block and moves closer to app assembly plus runtime wiring only.
+  - The extracted LLM-function-factory contract now has focused regression coverage in `tests/test_llm_model_factory.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.

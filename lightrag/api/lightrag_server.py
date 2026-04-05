@@ -19,6 +19,7 @@ from lightrag.api.app_lifespan import create_app_lifespan
 from lightrag.api.app_runtime_args import normalize_runtime_args
 from lightrag.api.app_startup_state import build_app_startup_state
 from lightrag.api.llm_config_cache import LLMConfigCache
+from lightrag.api.llm_model_factory import build_llm_model_func
 from lightrag.api.llm_model_kwargs import build_llm_model_kwargs
 from lightrag.api.query_validation_handlers import (
     create_query_validation_exception_handler,
@@ -73,186 +74,6 @@ def create_app(args):
 
     # Create working directory if it doesn't exist
     Path(args.working_dir).mkdir(parents=True, exist_ok=True)
-
-    def create_optimized_openai_llm_func(
-        config_cache: LLMConfigCache, args, llm_timeout: int
-    ):
-        """Create optimized OpenAI LLM function with pre-processed configuration"""
-
-        async def optimized_openai_alike_model_complete(
-            prompt,
-            system_prompt=None,
-            history_messages=None,
-            keyword_extraction=False,
-            **kwargs,
-        ) -> str:
-            from lightrag.llm.openai import openai_complete_if_cache
-
-            keyword_extraction = kwargs.pop("keyword_extraction", None)
-            if keyword_extraction:
-                kwargs["response_format"] = GPTKeywordExtractionFormat
-            if history_messages is None:
-                history_messages = []
-
-            # Use pre-processed configuration to avoid repeated parsing
-            kwargs["timeout"] = llm_timeout
-            if config_cache.openai_llm_options:
-                kwargs.update(config_cache.openai_llm_options)
-
-            return await openai_complete_if_cache(
-                args.llm_model,
-                prompt,
-                system_prompt=system_prompt,
-                history_messages=history_messages,
-                base_url=args.llm_binding_host,
-                api_key=args.llm_binding_api_key,
-                **kwargs,
-            )
-
-        return optimized_openai_alike_model_complete
-    def create_optimized_modelscope_llm_func(
-        config_cache: LLMConfigCache, args, llm_timeout: int
-    ):
-        """Create optimized OpenAI LLM function with pre-processed configuration"""
-        from lightrag.llm.hf import hf_model_complete
-        return hf_model_complete
-        # async def optimized_openai_alike_model_complete(
-        #     prompt,
-        #     system_prompt=None,
-        #     history_messages=None,
-        #     keyword_extraction=False,
-        #     **kwargs,
-        # ) -> str:
-        #     from lightrag.llm.hf import hf_model_complete
-        #
-        #     keyword_extraction = kwargs.pop("keyword_extraction", None)
-        #     if keyword_extraction:
-        #         kwargs["response_format"] = GPTKeywordExtractionFormat
-        #     if history_messages is None:
-        #         history_messages = []
-        #
-        #     # Use pre-processed configuration to avoid repeated parsing
-        #     kwargs["timeout"] = llm_timeout
-        #     if config_cache.openai_llm_options:
-        #         kwargs.update(config_cache.openai_llm_options)
-        #
-        #     return await hf_model_complete(
-        #         args.llm_model,
-        #         prompt,
-        #         system_prompt=system_prompt,
-        #         history_messages=history_messages,
-        #         enable_cot=False,
-        #         **kwargs,
-        #     )
-        #
-        # return optimized_openai_alike_model_complete
-
-    def create_optimized_azure_openai_llm_func(
-        config_cache: LLMConfigCache, args, llm_timeout: int
-    ):
-        """Create optimized Azure OpenAI LLM function with pre-processed configuration"""
-
-        async def optimized_azure_openai_model_complete(
-            prompt,
-            system_prompt=None,
-            history_messages=None,
-            keyword_extraction=False,
-            **kwargs,
-        ) -> str:
-            from lightrag.llm.azure_openai import azure_openai_complete_if_cache
-
-            keyword_extraction = kwargs.pop("keyword_extraction", None)
-            if keyword_extraction:
-                kwargs["response_format"] = GPTKeywordExtractionFormat
-            if history_messages is None:
-                history_messages = []
-
-            # Use pre-processed configuration to avoid repeated parsing
-            kwargs["timeout"] = llm_timeout
-            if config_cache.openai_llm_options:
-                kwargs.update(config_cache.openai_llm_options)
-
-            return await azure_openai_complete_if_cache(
-                args.llm_model,
-                prompt,
-                system_prompt=system_prompt,
-                history_messages=history_messages,
-                base_url=args.llm_binding_host,
-                api_key=os.getenv("AZURE_OPENAI_API_KEY", args.llm_binding_api_key),
-                api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-08-01-preview"),
-                **kwargs,
-            )
-
-        return optimized_azure_openai_model_complete
-
-    def create_optimized_gemini_llm_func(
-        config_cache: LLMConfigCache, args, llm_timeout: int
-    ):
-        """Create optimized Gemini LLM function with cached configuration"""
-
-        async def optimized_gemini_model_complete(
-            prompt,
-            system_prompt=None,
-            history_messages=None,
-            keyword_extraction=False,
-            **kwargs,
-        ) -> str:
-            from lightrag.llm.gemini import gemini_complete_if_cache
-
-            if history_messages is None:
-                history_messages = []
-
-            # Use pre-processed configuration to avoid repeated parsing
-            kwargs["timeout"] = llm_timeout
-            if (
-                config_cache.gemini_llm_options is not None
-                and "generation_config" not in kwargs
-            ):
-                kwargs["generation_config"] = dict(config_cache.gemini_llm_options)
-
-            return await gemini_complete_if_cache(
-                args.llm_model,
-                prompt,
-                system_prompt=system_prompt,
-                history_messages=history_messages,
-                api_key=args.llm_binding_api_key,
-                base_url=args.llm_binding_host,
-                keyword_extraction=keyword_extraction,
-                **kwargs,
-            )
-
-        return optimized_gemini_model_complete
-
-    def create_llm_model_func(binding: str):
-        """
-        Create LLM model function based on binding type.
-        Uses optimized functions for OpenAI bindings and lazy import for others.
-        """
-        try:
-            if binding == "modelscope":
-                return create_optimized_modelscope_llm_func(config_cache, args, llm_timeout)
-            elif binding == "lollms":
-                from lightrag.llm.lollms import lollms_model_complete
-
-                return lollms_model_complete
-            elif binding == "ollama":
-                from lightrag.llm.ollama import ollama_model_complete
-
-                return ollama_model_complete
-            elif binding == "aws_bedrock":
-                return bedrock_model_complete  # Already defined locally
-            elif binding == "azure_openai":
-                # Use optimized function with pre-processed configuration
-                return create_optimized_azure_openai_llm_func(
-                    config_cache, args, llm_timeout
-                )
-            elif binding == "gemini":
-                return create_optimized_gemini_llm_func(config_cache, args, llm_timeout)
-            else:  # openai and compatible
-                # Use optimized function with pre-processed configuration
-                return create_optimized_openai_llm_func(config_cache, args, llm_timeout)
-        except ImportError as e:
-            raise Exception(f"Failed to import {binding} LLM binding: {e}")
 
     def create_optimized_embedding_function(
         config_cache: LLMConfigCache, binding, model, host, api_key, args
@@ -631,7 +452,13 @@ def create_app(args):
         rag = LightRAG(
             working_dir=args.working_dir,
             workspace=args.workspace,
-            llm_model_func=create_llm_model_func(args.llm_binding),
+            llm_model_func=build_llm_model_func(
+                args.llm_binding,
+                config_cache=config_cache,
+                args=args,
+                llm_timeout=llm_timeout,
+                bedrock_model_complete=bedrock_model_complete,
+            ),
             llm_model_name=args.llm_model,
             llm_model_max_async=args.max_async,
             summary_max_tokens=args.summary_max_tokens,
