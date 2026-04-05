@@ -788,3 +788,18 @@
   - Ollama streaming transport behavior now has one authoritative implementation for media type and headers.
   - Focused tests now lock the shared wrapper contract and confirm both generate and chat handlers delegate to it.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-051: AN1 centralizes terminal Ollama stream payload shaping
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AM1`, the generate and chat stream iterators still duplicated the final done payload timing/accounting block and their provider-error terminal payload shaping.
+  - The payloads are not identical, but they share the same timing metrics, error-text convention, and two-message terminal pattern of `error` followed by final `done`.
+  - Keeping those terminal states inline meant future tweaks to error normalization or completion metrics would still need to be synchronized across two endpoint-specific modules.
+- Decision:
+  - Introduce `lightrag/api/routers/ollama_stream_payloads.py` for shared done/error payload builders and shared stream-error normalization.
+  - Reuse those helpers from both generate and chat iterators, while keeping endpoint-specific chunk payload shapes in their own handler modules for now.
+- Impact:
+  - Ollama terminal stream behavior now has one authoritative seam for completion metrics and error payload conventions.
+  - Focused tests now lock the shared terminal payload-builder contract and confirm the iterators delegate to it.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.

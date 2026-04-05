@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "AN1 pending after AM1: extract shared Ollama stream completion payload builders to remove duplicated done/error payload shaping across generate and chat iterators"
+  current_focus: "AO1 pending after AN1: extract shared Ollama stream chunk payload builders to remove duplicated per-chunk payload shaping across generate and chat iterators"
 
 tasks:
   - id: A0
@@ -1074,7 +1074,7 @@ tasks:
   - id: AN1
     title: "Extract shared Ollama stream completion payload builders"
     priority: 43
-    status: pending
+    status: completed
     depends_on: [AM1]
     area: "api"
     problem_statement: "The Ollama generate and chat stream iterators still duplicate the final done payload timing/accounting block and their provider-error terminal payload shaping."
@@ -1095,4 +1095,31 @@ tasks:
       - "docs/codex/TASK_QUEUE.yaml"
       - "docs/codex/DECISIONS.md"
     notes:
-      - "Queued from AM1 follow-up analysis after the transport wrapper was unified but both iterators still duplicated terminal payload shaping logic."
+      - "Completed by extracting shared done/error payload builders plus shared stream-error normalization into lightrag/api/routers/ollama_stream_payloads.py and reusing them from both generate and chat iterators."
+      - "Focused regression coverage lives in tests/test_ollama_stream_payloads.py."
+
+  - id: AO1
+    title: "Extract shared Ollama stream chunk payload builders"
+    priority: 44
+    status: pending
+    depends_on: [AN1]
+    area: "api"
+    problem_statement: "The Ollama generate and chat stream iterators still duplicate the per-chunk payload shaping for normal streaming tokens and for the initial string-response chunk path."
+    root_cause_hypothesis: "After transport and terminal payload builders were centralized, the remaining duplication is the non-terminal chunk payload structure, which stayed inline because generate uses `response` while chat uses nested `message.content`."
+    definition_of_done:
+      - "Shared helpers build the common Ollama non-terminal stream chunk payload structure"
+      - "Generate and chat iterators reuse those helpers instead of duplicating chunk payload assembly"
+      - "Focused tests cover the shared chunk-payload contract at the touched seam"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/ollama_generate_handlers.py lightrag/api/routers/ollama_chat_handlers.py lightrag/api/routers/ollama_stream_payloads.py tests/test_ollama_stream_payloads.py"
+      - "python -m pytest tests/test_ollama_stream_payloads.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/ollama_generate_handlers.py"
+      - "lightrag/api/routers/ollama_chat_handlers.py"
+      - "lightrag/api/routers/ollama_stream_payloads.py"
+      - "tests/test_ollama_stream_payloads.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued from AN1 follow-up analysis after the terminal payload seam was centralized but both iterators still duplicated their non-terminal chunk payload assembly."

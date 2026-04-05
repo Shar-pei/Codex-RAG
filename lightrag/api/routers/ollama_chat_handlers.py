@@ -13,6 +13,11 @@ from lightrag.api.routers.ollama_request_helpers import (
     estimate_tokens,
     parse_query_mode,
 )
+from lightrag.api.routers.ollama_stream_payloads import (
+    build_chat_done_payload,
+    build_chat_error_payload,
+    normalize_stream_error,
+)
 from lightrag.api.routers.ollama_streaming_responses import (
     build_ollama_streaming_response,
 )
@@ -125,28 +130,14 @@ async def iter_chat_stream_payloads(response, server_infos, prompt_tokens, start
         }
         yield f"{json.dumps(data, ensure_ascii=False)}\n"
 
-        completion_tokens = estimate_tokens(total_response)
-        total_time = last_chunk_time - start_time
-        prompt_eval_time = first_chunk_time - start_time
-        eval_time = last_chunk_time - first_chunk_time
-
-        data = {
-            "model": server_infos.LIGHTRAG_MODEL,
-            "created_at": server_infos.LIGHTRAG_CREATED_AT,
-            "message": {
-                "role": "assistant",
-                "content": "",
-                "images": None,
-            },
-            "done_reason": "stop",
-            "done": True,
-            "total_duration": total_time,
-            "load_duration": 0,
-            "prompt_eval_count": prompt_tokens,
-            "prompt_eval_duration": prompt_eval_time,
-            "eval_count": completion_tokens,
-            "eval_duration": eval_time,
-        }
+        data = build_chat_done_payload(
+            server_infos=server_infos,
+            total_response=total_response,
+            prompt_tokens=prompt_tokens,
+            start_time=start_time,
+            first_chunk_time=first_chunk_time,
+            last_chunk_time=last_chunk_time,
+        )
         yield f"{json.dumps(data, ensure_ascii=False)}\n"
         return
 
@@ -170,64 +161,21 @@ async def iter_chat_stream_payloads(response, server_infos, prompt_tokens, start
                 }
                 yield f"{json.dumps(data, ensure_ascii=False)}\n"
     except (asyncio.CancelledError, Exception) as exc:
-        error_msg = str(exc)
-        if isinstance(exc, asyncio.CancelledError):
-            error_msg = "Stream was cancelled by server"
-        else:
-            error_msg = f"Provider error: {error_msg}"
-
+        error_msg = normalize_stream_error(exc)
         logger.error(f"Stream error: {error_msg}")
-
-        error_data = {
-            "model": server_infos.LIGHTRAG_MODEL,
-            "created_at": server_infos.LIGHTRAG_CREATED_AT,
-            "message": {
-                "role": "assistant",
-                "content": f"\n\nError: {error_msg}",
-                "images": None,
-            },
-            "error": f"\n\nError: {error_msg}",
-            "done": False,
-        }
+        error_data, final_data = build_chat_error_payload(server_infos, error_msg)
         yield f"{json.dumps(error_data, ensure_ascii=False)}\n"
-
-        final_data = {
-            "model": server_infos.LIGHTRAG_MODEL,
-            "created_at": server_infos.LIGHTRAG_CREATED_AT,
-            "message": {
-                "role": "assistant",
-                "content": "",
-                "images": None,
-            },
-            "done": True,
-        }
         yield f"{json.dumps(final_data, ensure_ascii=False)}\n"
         return
 
-    if first_chunk_time is None:
-        first_chunk_time = start_time
-    completion_tokens = estimate_tokens(total_response)
-    total_time = last_chunk_time - start_time
-    prompt_eval_time = first_chunk_time - start_time
-    eval_time = last_chunk_time - first_chunk_time
-
-    data = {
-        "model": server_infos.LIGHTRAG_MODEL,
-        "created_at": server_infos.LIGHTRAG_CREATED_AT,
-        "message": {
-            "role": "assistant",
-            "content": "",
-            "images": None,
-        },
-        "done_reason": "stop",
-        "done": True,
-        "total_duration": total_time,
-        "load_duration": 0,
-        "prompt_eval_count": prompt_tokens,
-        "prompt_eval_duration": prompt_eval_time,
-        "eval_count": completion_tokens,
-        "eval_duration": eval_time,
-    }
+    data = build_chat_done_payload(
+        server_infos=server_infos,
+        total_response=total_response,
+        prompt_tokens=prompt_tokens,
+        start_time=start_time,
+        first_chunk_time=first_chunk_time,
+        last_chunk_time=last_chunk_time,
+    )
     yield f"{json.dumps(data, ensure_ascii=False)}\n"
 
 
