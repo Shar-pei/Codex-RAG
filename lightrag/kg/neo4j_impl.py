@@ -13,24 +13,19 @@ from tenacity import (
 )
 
 import logging
+from lightrag._pipmaster import import_or_install
 from ..utils import logger
 from ..base import BaseGraphStorage
 from ..types import KnowledgeGraph, KnowledgeGraphNode, KnowledgeGraphEdge
 from ..kg.shared_storage import get_data_init_lock
 from ..kg.storage_contracts import resolve_storage_workspace
-import pipmaster as pm
-
-if not pm.is_installed("neo4j"):
-    pm.install("neo4j")
-
-from neo4j import (  # type: ignore
-    AsyncGraphDatabase,
-    exceptions as neo4jExceptions,
-    AsyncDriver,
-    AsyncManagedTransaction,
-)
-
 from dotenv import load_dotenv
+
+_neo4j = import_or_install("neo4j")
+AsyncGraphDatabase = _neo4j.AsyncGraphDatabase
+neo4jExceptions = _neo4j.exceptions
+AsyncDriver = _neo4j.AsyncDriver
+AsyncManagedTransaction = _neo4j.AsyncManagedTransaction
 
 # use the .env that is inside the current folder
 # allows to use different .env file for each lightrag instance

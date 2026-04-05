@@ -7,36 +7,16 @@ from typing import Any, final
 
 import numpy as np
 
-try:
-    import pipmaster as pm
-except ModuleNotFoundError:
-    import importlib.util
-    import subprocess
-    import sys
-
-    class _PipMasterFallback:
-        @staticmethod
-        def is_installed(package_name: str) -> bool:
-            return importlib.util.find_spec(package_name) is not None
-
-        @staticmethod
-        def install(package_name: str) -> None:
-            subprocess.check_call(
-                [sys.executable, "-m", "pip", "install", package_name]
-            )
-
-    pm = _PipMasterFallback()
-
+from lightrag._pipmaster import import_or_install
 from lightrag.base import BaseVectorStorage
+from lightrag.kg.storage_contracts import resolve_storage_workspace
 from lightrag.utils import compute_mdhash_id, logger
 
-if not pm.is_installed("chromadb"):
-    pm.install("chromadb")
-
-from chromadb import HttpClient, PersistentClient  # type: ignore
-from chromadb.config import Settings  # type: ignore
-
-from lightrag.kg.storage_contracts import resolve_storage_workspace
+_chromadb = import_or_install("chromadb")
+_chromadb_config = import_or_install("chromadb.config", package_name="chromadb")
+HttpClient = _chromadb.HttpClient
+PersistentClient = _chromadb.PersistentClient
+Settings = _chromadb_config.Settings
 
 
 @final

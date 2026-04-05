@@ -11,6 +11,7 @@ import configparser
 import ssl
 import itertools
 
+from .._pipmaster import import_or_install
 from lightrag.types import KnowledgeGraph, KnowledgeGraphNode, KnowledgeGraphEdge
 
 from tenacity import (
@@ -35,16 +36,10 @@ from ..namespace import NameSpace, is_namespace
 from ..utils import logger
 from ..kg.shared_storage import get_data_init_lock
 from ..kg.storage_contracts import resolve_storage_workspace
-
-import pipmaster as pm
-
-if not pm.is_installed("asyncpg"):
-    pm.install("asyncpg")
-
-import asyncpg  # type: ignore
-from asyncpg import Pool  # type: ignore
-
 from dotenv import load_dotenv
+
+asyncpg = import_or_install("asyncpg")
+Pool = asyncpg.Pool
 
 # use the .env that is inside the current folder
 # allows to use different .env file for each lightrag instance

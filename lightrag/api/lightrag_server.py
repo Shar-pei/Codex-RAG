@@ -10,13 +10,13 @@ import logging
 import logging.config
 import sys
 import uvicorn
-import pipmaster as pm
 from pathlib import Path
 import configparser
 from ascii_colors import ASCIIColors
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
+from lightrag._pipmaster import get_pipmaster
 from lightrag.api.utils_api import display_splash_screen, check_env_file
 from .config import (
     global_args,
@@ -42,6 +42,8 @@ from lightrag.utils import logger, set_verbose_debug
 from lightrag.kg.shared_storage import (
     finalize_share_data,
 )
+
+pm = get_pipmaster()
 
 # use the .env that is inside the current folder
 # allows to use different .env file for each lightrag instance

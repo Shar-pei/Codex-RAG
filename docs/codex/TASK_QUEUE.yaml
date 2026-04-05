@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "F1 completed via the documented Postgres + Chroma + Neo4j storage-stack convergence; codex/lightrag now records the production storage contract and migration path as the active baseline"
+  current_focus: "G1 completed via a shared pipmaster fallback loader on the supported runtime surface; the active API and storage modules no longer rely on scattered pipmaster imports or a repo-root shim"
 
 tasks:
   - id: A0
@@ -241,3 +241,31 @@ tasks:
       - "Completed by making the official storage contract explicit across runtime defaults, storage verification, deployment docs, and migration guidance."
       - "Focused regression coverage lives in tests/test_storage_stack_defaults.py, with tests/test_chroma_storage.py and tests/test_storage_contracts.py covering the touched adapter seam."
       - "Validation is scoped to the touched storage seam because repo-wide Ruff still reports unrelated baseline lint debt outside F1."
+
+  - id: G1
+    title: "Centralize pipmaster fallback on the supported runtime surface"
+    priority: 10
+    status: completed
+    depends_on: [F1]
+    area: "runtime-dependencies"
+    problem_statement: "Supported runtime modules still hard-import `pipmaster`, which leaves source checkouts depending on a local shim when the package is not already installed."
+    root_cause_hypothesis: "Optional dependency bootstrap logic evolved independently in API and storage modules, so the supported runtime surface never converged on one shared import boundary for `pipmaster`."
+    definition_of_done:
+      - "The supported runtime surface uses one shared helper to load `pipmaster` or a local fallback"
+      - "The production API and storage modules no longer duplicate inline `pipmaster` import logic"
+      - "Focused tests cover the fallback helper behavior"
+    validation_commands:
+      - "python -m ruff check lightrag/_pipmaster.py lightrag/api/lightrag_server.py lightrag/api/run_with_gunicorn.py lightrag/kg/chroma_impl.py lightrag/kg/neo4j_impl.py lightrag/kg/postgres_impl.py tests/test_pipmaster_fallback.py"
+      - "python -m pytest tests/test_pipmaster_fallback.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/_pipmaster.py"
+      - "lightrag/api/*"
+      - "lightrag/kg/*"
+      - "tests/*"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Keep scope on the supported runtime surface defined by the current contracts instead of sweeping every legacy adapter in one run."
+      - "Completed by adding lightrag/_pipmaster.py as the shared import-or-install boundary and rewiring the active API, PostgreSQL, Chroma, and Neo4j modules to use it."
+      - "Focused regression coverage lives in tests/test_pipmaster_fallback.py."

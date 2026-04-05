@@ -267,3 +267,19 @@
   - Runtime defaults, deployment examples, and storage verification now describe one explicit production stack instead of several conflicting defaults.
   - The new migration tool `python -m lightrag.tools.migrate_to_pg_chroma_neo4j` becomes the deliberate bridge from the legacy local stack into the supported runtime contract.
   - Focused regression tests now protect the default stack contract and the PostgreSQL table-management boundary without widening the task into unrelated adapter cleanup.
+
+## DCR-018: G1 centralizes pipmaster fallback for the supported runtime surface
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `F1`, the only remaining local worktree artifact was an untracked repo-root `pipmaster.py` shim.
+  - The supported runtime surface still imported `pipmaster` independently in `lightrag/api/lightrag_server.py`, `lightrag/api/run_with_gunicorn.py`, `lightrag/kg/chroma_impl.py`, `lightrag/kg/neo4j_impl.py`, and `lightrag/kg/postgres_impl.py`.
+  - Chroma already carried an inline fallback loader while the other active modules hard-imported `pipmaster`, so the import boundary for optional dependency bootstrap had drifted across the very modules that define the supported runtime stack.
+- Decision:
+  - Introduce `lightrag/_pipmaster.py` as the shared helper that either imports the installed `pipmaster` package or falls back to a minimal local implementation.
+  - Expose `import_or_install(...)` from that helper so supported runtime modules can avoid repeating the `is_installed -> install -> import` sequence and stop triggering module-order lint exceptions while doing dynamic bootstrap.
+  - Rewire only the supported runtime surface to use this helper in `G1`; leave broader legacy-adapter cleanup for a later queue item instead of widening scope here.
+- Impact:
+  - The active API and storage modules now share one dependency-bootstrap boundary instead of duplicating `pipmaster` import logic.
+  - Source checkouts no longer need a tracked repo-root shim to explain how the supported runtime surface handles a missing `pipmaster` package.
+  - Focused tests in `tests/test_pipmaster_fallback.py` now lock the helper behavior for both installed and fallback paths.

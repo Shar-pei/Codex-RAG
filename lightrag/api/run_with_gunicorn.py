@@ -6,7 +6,7 @@ Start LightRAG server with Gunicorn
 import os
 import sys
 import platform
-import pipmaster as pm
+from lightrag._pipmaster import get_pipmaster
 from lightrag.api.utils_api import display_splash_screen, check_env_file
 from lightrag.api.config import global_args
 from lightrag.utils import get_env_value
@@ -16,6 +16,8 @@ from lightrag.constants import (
     DEFAULT_WOKERS,
     DEFAULT_TIMEOUT,
 )
+
+pm = get_pipmaster()
 
 
 def check_and_install_dependencies():
