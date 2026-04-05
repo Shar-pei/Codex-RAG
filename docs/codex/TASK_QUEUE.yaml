@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after BE1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after BF1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1579,4 +1579,32 @@ tasks:
     notes:
       - "Queued after BD1 root-cause analysis showed the next narrow self-contained seam in `create_app()` is the provider-specific LLM function factory block rather than the larger embedding or rerank setup."
       - "Completed by introducing lightrag/api/llm_model_factory.py for provider-specific LLM wrapper builders plus dispatch, then rewiring lightrag_server.py to consume that helper instead of defining the factory inline."
+      - "Focused regression coverage lives in tests/test_llm_model_factory.py."
+
+  - id: BF1
+    title: "Absorb the Bedrock LLM callable into llm_model_factory.py"
+    priority: 61
+    status: completed
+    depends_on: [BE1]
+    area: "api"
+    problem_statement: "Even after `BE1`, the FastAPI server entrypoint still defines the Bedrock LLM callable inline and passes it into `llm_model_factory`, so app construction still owns the last provider-specific LLM wrapper behavior."
+    root_cause_hypothesis: "The initial LLM-factory extraction kept Bedrock local because it already existed as a closure over `args`, but that left `lightrag_server.py` with one remaining provider-specific LLM branch and kept the factory helper from becoming fully authoritative for LLM dispatch."
+    definition_of_done:
+      - "`llm_model_factory.py` owns the Bedrock LLM callable behavior along with the other provider-specific wrappers"
+      - "`lightrag_server.py` no longer defines or passes a Bedrock LLM callable into the factory"
+      - "The existing Bedrock temperature override and history defaulting behavior remain unchanged"
+      - "Focused tests cover the extracted Bedrock callable behavior through the factory seam"
+    validation_commands:
+      - "python -m ruff check lightrag/api/llm_model_factory.py lightrag/api/lightrag_server.py tests/test_llm_model_factory.py"
+      - "python -m pytest tests/test_llm_model_factory.py -q"
+    risk_level: "low"
+    expected_files:
+      - "lightrag/api/llm_model_factory.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_llm_model_factory.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BE1 root-cause analysis showed the remaining provider-specific LLM seam in `lightrag_server.py` is the local Bedrock callable rather than the larger embedding or rerank setup."
+      - "Completed by moving the Bedrock LLM callable behavior into lightrag/api/llm_model_factory.py and rewiring lightrag_server.py to stop defining or passing a local Bedrock wrapper."
       - "Focused regression coverage lives in tests/test_llm_model_factory.py."

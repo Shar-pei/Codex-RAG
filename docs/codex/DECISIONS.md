@@ -1075,3 +1075,19 @@
   - `lightrag_server.py` sheds another provider-specific dispatch block and moves closer to app assembly plus runtime wiring only.
   - The extracted LLM-function-factory contract now has focused regression coverage in `tests/test_llm_model_factory.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-069: BF1 makes llm_model_factory authoritative for Bedrock as well
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BE1`, `lightrag/api/lightrag_server.py` no longer owned most provider-specific LLM wrappers, but it still defined the Bedrock callable locally and passed it into `llm_model_factory`.
+  - That left one last provider-specific LLM behavior in the app-factory module and prevented `llm_model_factory.py` from becoming the single authoritative LLM-dispatch seam.
+  - The Bedrock callable itself was already self-contained around `args` plus the environment temperature override.
+- Decision:
+  - Extend `lightrag/api/llm_model_factory.py` to own the Bedrock callable behavior alongside the other provider-specific LLM wrappers.
+  - Simplify `build_llm_model_func(...)` so it no longer accepts a Bedrock callable from `lightrag_server.py`.
+  - Preserve the existing Bedrock temperature override and default empty `history_messages` behavior without widening this run into any other LLM behavior changes.
+- Impact:
+  - `lightrag_server.py` sheds the final provider-specific LLM callable and moves closer to pure app assembly plus runtime wiring.
+  - `llm_model_factory.py` is now the single authoritative seam for provider-specific LLM wrapper behavior and dispatch.
+  - Focused regression coverage in `tests/test_llm_model_factory.py` now also locks the Bedrock callable behavior at the extracted seam, with no external API-path or payload-shape changes, so `docs/codex/CONTRACTS.md` did not require an update for this task.

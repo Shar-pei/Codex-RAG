@@ -32,7 +32,6 @@ from .config import (
 from lightrag.utils import get_env_value
 from lightrag import LightRAG
 from lightrag.api import __api_version__
-from lightrag.types import GPTKeywordExtractionFormat
 from lightrag.utils import EmbeddingFunc
 from lightrag.api.app_route_context import RouteRegistryContext
 from lightrag.api.route_registry import register_app_routes
@@ -300,33 +299,6 @@ def create_app(args):
         "EMBEDDING_TIMEOUT", DEFAULT_EMBEDDING_TIMEOUT, int
     )
 
-    async def bedrock_model_complete(
-        prompt,
-        system_prompt=None,
-        history_messages=None,
-        keyword_extraction=False,
-        **kwargs,
-    ) -> str:
-        # Lazy import
-        from lightrag.llm.bedrock import bedrock_complete_if_cache
-
-        keyword_extraction = kwargs.pop("keyword_extraction", None)
-        if keyword_extraction:
-            kwargs["response_format"] = GPTKeywordExtractionFormat
-        if history_messages is None:
-            history_messages = []
-
-        # Use global temperature for Bedrock
-        kwargs["temperature"] = get_env_value("BEDROCK_LLM_TEMPERATURE", 1.0, float)
-
-        return await bedrock_complete_if_cache(
-            args.llm_model,
-            prompt,
-            system_prompt=system_prompt,
-            history_messages=history_messages,
-            **kwargs,
-        )
-
     # Create embedding function with optimized configuration and max_token_size inheritance
     import inspect
 
@@ -457,7 +429,6 @@ def create_app(args):
                 config_cache=config_cache,
                 args=args,
                 llm_timeout=llm_timeout,
-                bedrock_model_complete=bedrock_model_complete,
             ),
             llm_model_name=args.llm_model,
             llm_model_max_async=args.max_async,

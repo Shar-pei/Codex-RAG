@@ -4,6 +4,7 @@ import asyncio
 import sys
 from types import ModuleType, SimpleNamespace
 
+from lightrag.api import llm_model_factory
 from lightrag.api.llm_model_factory import build_llm_model_func
 def _args():
     return SimpleNamespace(
@@ -30,7 +31,6 @@ def test_build_llm_model_func_openai_wrapper_merges_timeout_and_cache(monkeypatc
         config_cache=config_cache,
         args=_args(),
         llm_timeout=30,
-        bedrock_model_complete=object(),
     )
 
     result = asyncio.run(model_func("hello", keyword_extraction=True))
@@ -69,7 +69,6 @@ def test_build_llm_model_func_gemini_injects_generation_config(monkeypatch):
         config_cache=config_cache,
         args=_args(),
         llm_timeout=45,
-        bedrock_model_complete=object(),
     )
 
     result = asyncio.run(model_func("hello"))
@@ -92,15 +91,40 @@ def test_build_llm_model_func_gemini_injects_generation_config(monkeypatch):
     ]
 
 
-def test_build_llm_model_func_returns_bedrock_callable_for_bedrock_binding():
-    bedrock_callable = object()
+def test_build_llm_model_func_builds_bedrock_callable(monkeypatch):
+    calls = []
+    bedrock_module = ModuleType("lightrag.llm.bedrock")
+
+    async def fake_bedrock_complete_if_cache(model, prompt, **kwargs):
+        calls.append((model, prompt, kwargs))
+        return "ok"
+
+    bedrock_module.bedrock_complete_if_cache = fake_bedrock_complete_if_cache
+    monkeypatch.setitem(sys.modules, "lightrag.llm.bedrock", bedrock_module)
+    monkeypatch.setattr(
+        llm_model_factory,
+        "get_env_value",
+        lambda name, default, value_type: 0.7,
+    )
 
     model_func = build_llm_model_func(
         "aws_bedrock",
         config_cache=SimpleNamespace(),
         args=_args(),
         llm_timeout=30,
-        bedrock_model_complete=bedrock_callable,
     )
 
-    assert model_func is bedrock_callable
+    result = asyncio.run(model_func("hello"))
+
+    assert result == "ok"
+    assert calls == [
+        (
+            "demo-model",
+            "hello",
+            {
+                "system_prompt": None,
+                "history_messages": [],
+                "temperature": 0.7,
+            },
+        )
+    ]

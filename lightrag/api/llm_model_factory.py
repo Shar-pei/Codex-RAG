@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 
 from lightrag.types import GPTKeywordExtractionFormat
+from lightrag.utils import get_env_value
 
 
 def _create_optimized_openai_llm_func(config_cache, args, llm_timeout: int):
@@ -120,7 +121,38 @@ def _create_optimized_gemini_llm_func(config_cache, args, llm_timeout: int):
     return optimized_gemini_model_complete
 
 
-def build_llm_model_func(binding: str, config_cache, args, llm_timeout: int, bedrock_model_complete):
+def _create_bedrock_llm_func(args):
+    """Create the Bedrock LLM callable."""
+
+    async def bedrock_model_complete(
+        prompt,
+        system_prompt=None,
+        history_messages=None,
+        keyword_extraction=False,
+        **kwargs,
+    ) -> str:
+        from lightrag.llm.bedrock import bedrock_complete_if_cache
+
+        keyword_extraction = kwargs.pop("keyword_extraction", None)
+        if keyword_extraction:
+            kwargs["response_format"] = GPTKeywordExtractionFormat
+        if history_messages is None:
+            history_messages = []
+
+        kwargs["temperature"] = get_env_value("BEDROCK_LLM_TEMPERATURE", 1.0, float)
+
+        return await bedrock_complete_if_cache(
+            args.llm_model,
+            prompt,
+            system_prompt=system_prompt,
+            history_messages=history_messages,
+            **kwargs,
+        )
+
+    return bedrock_model_complete
+
+
+def build_llm_model_func(binding: str, config_cache, args, llm_timeout: int):
     """
     Create an LLM model function based on binding type.
     Uses optimized wrappers for OpenAI-compatible bindings and lazy import for others.
@@ -137,7 +169,7 @@ def build_llm_model_func(binding: str, config_cache, args, llm_timeout: int, bed
 
             return ollama_model_complete
         if binding == "aws_bedrock":
-            return bedrock_model_complete
+            return _create_bedrock_llm_func(args)
         if binding == "azure_openai":
             return _create_optimized_azure_openai_llm_func(
                 config_cache, args, llm_timeout
