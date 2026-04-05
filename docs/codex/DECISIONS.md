@@ -662,3 +662,18 @@
   - `graph_routes.py` sheds its remaining read-side orchestration and moves close to a pure route-registration layer.
   - Graph query behavior now has focused regression coverage for backend delegation, knowledge-graph argument forwarding, error mapping, and entity-existence response wrapping without importing the full router.
   - Follow-on API work can move away from `graph_routes.py` splitting and target broader route composition or other hotspots.
+
+## DCR-043: AF1 makes create_document_routes a real APIRouter factory
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After the document-route seam extraction series, `lightrag/api/routers/document_routes.py` still exposed `create_document_routes(...)` while registering all handlers onto a shared module-level `APIRouter`.
+  - Root-cause checks showed the bug directly: the first call returned 16 routes, and the second call returned 32 routes because the same `/documents/*` endpoints were registered twice on the shared router.
+  - `route_registry.register_app_routes(...)` includes the document router through `create_document_routes(...)`, so the safe contract is "return a fresh router" rather than "mutate a hidden singleton."
+- Decision:
+  - Move `APIRouter(prefix="/documents", tags=["documents"])` construction inside `create_document_routes(...)`.
+  - Retain an empty module-level `router` only as a compatibility import surface for `lightrag.api.routers.__init__`.
+- Impact:
+  - Repeated `create_document_routes(...)` calls no longer accumulate duplicate document endpoints.
+  - The function name and behavior now match: it is a true router factory rather than a wrapper around a mutable singleton.
+  - Focused regression tests now lock the fresh-router and no-duplicate-registration behavior for document routes too.

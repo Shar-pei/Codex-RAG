@@ -112,6 +112,10 @@ router = APIRouter(
 def create_document_routes(
     rag: LightRAG, doc_manager: DocumentManager, api_key: Optional[str] = None
 ):
+    router = APIRouter(
+        prefix="/documents",
+        tags=["documents"],
+    )
     # Create combined auth dependency for document routes
     combined_auth = get_combined_auth_dependency(api_key)
 

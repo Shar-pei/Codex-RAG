@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "AE1 completed by extracting read-side graph query helpers out of graph_routes.py, reducing the largest active graph router's remaining query orchestration"
+  current_focus: "AF1 completed by making create_document_routes(...) a true router factory, fixing duplicate document route registration across repeated app assembly"
 
 tasks:
   - id: A0
@@ -868,3 +868,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving graph label listing/search, knowledge-graph retrieval, and entity-existence helpers into lightrag/api/routers/graph_query_helpers.py while keeping graph_routes.py as the compatibility import surface."
+
+  - id: AF1
+    title: "Make create_document_routes a true router factory"
+    priority: 35
+    status: completed
+    depends_on: [AE1]
+    area: "api"
+    problem_statement: "The document route builder still registers handlers onto a shared module-level APIRouter, so repeated create_document_routes(...) calls duplicate the same document endpoints."
+    root_cause_hypothesis: "The module started with a singleton router for decorator convenience, and later wrapped route registration in a factory function without moving the APIRouter allocation inside that factory."
+    definition_of_done:
+      - "Each create_document_routes(...) call returns a fresh APIRouter instance"
+      - "Repeated factory calls do not accumulate duplicate document route registrations"
+      - "Focused tests cover the fresh-router and no-duplicate-registration behavior"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/document_routes.py tests/test_document_router_factory.py"
+      - "python -m pytest tests/test_document_router_factory.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/document_routes.py"
+      - "tests/test_document_router_factory.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving APIRouter construction inside create_document_routes(...) so the document router builder no longer mutates a shared module-level router across repeated calls."
+      - "An empty module-level router remains only as a compatibility import surface for lightrag.api.routers.__init__."
