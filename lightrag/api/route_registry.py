@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import FastAPI
 from fastapi.openapi.docs import (
     get_swagger_ui_html,
     get_swagger_ui_oauth2_redirect_html,
@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 
 from lightrag import LightRAG, __version__ as core_version
 from lightrag.api.app_auth_routes import create_auth_router
+from lightrag.api.app_health_routes import create_health_router
 from lightrag.api.routers.document_routes import (
     DocumentManager,
     create_document_routes,
@@ -22,11 +23,6 @@ from lightrag.api.routers.graph_routes import create_graph_routes
 from lightrag.api.routers.ollama_api import create_ollama_router
 from lightrag.api.routers.query_routes import create_query_routes
 from lightrag.api.utils_api import get_combined_auth_dependency
-from lightrag.kg.shared_storage import (
-    cleanup_keyed_lock,
-    get_default_workspace,
-    get_namespace_data,
-)
 from lightrag.utils import logger
 
 
@@ -73,11 +69,6 @@ def _build_version_payload(context: RouteRegistryContext) -> dict[str, Any]:
     }
 
 
-def _get_workspace_from_request(request: Request) -> str | None:
-    workspace = request.headers.get("LIGHTRAG-WORKSPACE", "").strip()
-    return workspace or None
-
-
 def _get_auth_handler(context: RouteRegistryContext):
     if context.auth_handler is not None:
         return context.auth_handler
@@ -111,7 +102,16 @@ def register_app_routes(app: FastAPI, context: RouteRegistryContext) -> None:
         ),
         prefix="/api",
     )
-    app.include_router(create_auth_router(auth_handler, _build_version_payload(context)))
+    version_payload = _build_version_payload(context)
+    app.include_router(create_auth_router(auth_handler, version_payload))
+    app.include_router(
+        create_health_router(
+            context=context,
+            combined_auth=combined_auth,
+            auth_handler=auth_handler,
+            version_payload=version_payload,
+        )
+    )
 
     @app.get("/docs", include_in_schema=False)
     async def custom_swagger_ui_html():
@@ -134,104 +134,6 @@ def register_app_routes(app: FastAPI, context: RouteRegistryContext) -> None:
         if context.webui_assets_exist:
             return RedirectResponse(url="/webui")
         return RedirectResponse(url="/docs")
-
-    @app.get(
-        "/health",
-        dependencies=[Depends(combined_auth)],
-        summary="Get system health and configuration status",
-        description="Returns comprehensive system status including WebUI availability, configuration, and operational metrics",
-        response_description="System health status with configuration details",
-        responses={
-            200: {
-                "description": "Successful response with system status",
-                "content": {
-                    "application/json": {
-                        "example": {
-                            "status": "healthy",
-                            "webui_available": True,
-                            "working_directory": "/path/to/working/dir",
-                            "input_directory": "/path/to/input/dir",
-                            "configuration": {
-                                "llm_binding": "openai",
-                                "llm_model": "gpt-4",
-                                "embedding_binding": "openai",
-                                "embedding_model": "text-embedding-ada-002",
-                                "workspace": "default",
-                            },
-                            "auth_mode": "enabled",
-                            "pipeline_busy": False,
-                            "core_version": "0.0.1",
-                            "api_version": "0.0.1",
-                        }
-                    }
-                },
-            }
-        },
-    )
-    async def get_status(request: Request):
-        try:
-            workspace = _get_workspace_from_request(request)
-            default_workspace = get_default_workspace()
-            if workspace is None:
-                workspace = default_workspace
-            pipeline_status = await get_namespace_data(
-                "pipeline_status",
-                workspace=workspace,
-            )
-
-            auth_mode = "enabled" if auth_handler.accounts else "disabled"
-            keyed_lock_info = cleanup_keyed_lock()
-
-            return {
-                "status": "healthy",
-                "webui_available": context.webui_assets_exist,
-                "working_directory": str(context.args.working_dir),
-                "input_directory": str(context.args.input_dir),
-                "configuration": {
-                    "llm_binding": context.args.llm_binding,
-                    "llm_binding_host": context.args.llm_binding_host,
-                    "llm_model": context.args.llm_model,
-                    "embedding_binding": context.args.embedding_binding,
-                    "embedding_binding_host": context.args.embedding_binding_host,
-                    "embedding_model": context.args.embedding_model,
-                    "summary_max_tokens": context.args.summary_max_tokens,
-                    "summary_context_size": context.args.summary_context_size,
-                    "kv_storage": context.args.kv_storage,
-                    "doc_status_storage": context.args.doc_status_storage,
-                    "graph_storage": context.args.graph_storage,
-                    "vector_storage": context.args.vector_storage,
-                    "enable_llm_cache_for_extract": context.args.enable_llm_cache_for_extract,
-                    "enable_llm_cache": context.args.enable_llm_cache,
-                    "workspace": default_workspace,
-                    "max_graph_nodes": context.args.max_graph_nodes,
-                    "enable_rerank": context.rerank_enabled,
-                    "rerank_binding": context.args.rerank_binding,
-                    "rerank_model": (
-                        context.args.rerank_model if context.rerank_enabled else None
-                    ),
-                    "rerank_binding_host": (
-                        context.args.rerank_binding_host
-                        if context.rerank_enabled
-                        else None
-                    ),
-                    "summary_language": context.args.summary_language,
-                    "force_llm_summary_on_merge": context.args.force_llm_summary_on_merge,
-                    "max_parallel_insert": context.args.max_parallel_insert,
-                    "cosine_threshold": context.args.cosine_threshold,
-                    "min_rerank_score": context.args.min_rerank_score,
-                    "related_chunk_number": context.args.related_chunk_number,
-                    "max_async": context.args.max_async,
-                    "embedding_func_max_async": context.args.embedding_func_max_async,
-                    "embedding_batch_num": context.args.embedding_batch_num,
-                },
-                "auth_mode": auth_mode,
-                "pipeline_busy": pipeline_status.get("busy", False),
-                "keyed_locks": keyed_lock_info,
-                **_build_version_payload(context),
-            }
-        except Exception as exc:
-            logger.error(f"Error getting health status: {str(exc)}")
-            raise HTTPException(status_code=500, detail=str(exc))
 
     swagger_static_dir = Path(__file__).parent / "static" / "swagger-ui"
     if swagger_static_dir.exists():

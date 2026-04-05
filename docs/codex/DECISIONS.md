@@ -851,3 +851,19 @@
   - Route registry moves closer to a pure app-composition module.
   - The root auth endpoints now have one authoritative home for guest-mode payload shaping and enabled-mode credential handling.
   - Focused tests now lock both the auth-router contract and the preserved app-level behavior without changing external API paths or response shapes, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-055: AR1 moves the root health route behind a health-router factory
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AQ1`, `lightrag/api/route_registry.py` still defined the root `/health` endpoint inline even though its main responsibility is app composition.
+  - That route mixed workspace-header parsing, pipeline-status lookup, keyed-lock inspection, large configuration payload shaping, and HTTP 500 mapping in one closure.
+  - Keeping that logic inline meant route registry still owned a full runtime endpoint rather than only assembling router families.
+- Decision:
+  - Introduce `lightrag/api/app_health_routes.py` with `create_health_router(...)` as the explicit root health-router factory.
+  - Rewire `lightrag/api/route_registry.py` to include that health router instead of defining `/health` inline.
+  - Move workspace resolution and health-configuration payload assembly behind the extracted health-router seam instead of duplicating or inlining them in app composition.
+- Impact:
+  - Route registry moves closer to a pure composition layer.
+  - The root health endpoint now has one authoritative home for workspace lookup, status reads, payload shaping, and error mapping.
+  - Focused tests now lock both the health-router contract and the preserved app-level behavior without changing external API paths or response shapes, so `docs/codex/CONTRACTS.md` did not require an update for this task.

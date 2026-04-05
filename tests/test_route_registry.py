@@ -87,24 +87,16 @@ def _patch_route_builders(monkeypatch):
     )
     monkeypatch.setattr(
         route_registry,
+        "create_health_router",
+        lambda context, combined_auth, auth_handler, version_payload: _make_router(
+            "", "/health"
+        ),
+    )
+    monkeypatch.setattr(
+        route_registry,
         "get_combined_auth_dependency",
         lambda api_key: (lambda: None),
     )
-    monkeypatch.setattr(
-        route_registry,
-        "get_default_workspace",
-        lambda: "workspace-a",
-    )
-    monkeypatch.setattr(
-        route_registry,
-        "cleanup_keyed_lock",
-        lambda: {"count": 0},
-    )
-
-    async def fake_namespace_data(namespace: str, workspace: str | None = None):
-        return {"busy": False, "workspace": workspace}
-
-    monkeypatch.setattr(route_registry, "get_namespace_data", fake_namespace_data)
     return route_registry
 
 
@@ -155,8 +147,7 @@ def test_register_app_routes_guest_mode_and_docs_redirect(monkeypatch):
 
     health_response = client.get("/health")
     assert health_response.status_code == 200
-    assert health_response.json()["configuration"]["workspace"] == "workspace-a"
-    assert health_response.json()["auth_mode"] == "disabled"
+    assert health_response.json()["prefix"] == ""
 
     webui_response = client.get("/webui", follow_redirects=False)
     assert webui_response.status_code == 307

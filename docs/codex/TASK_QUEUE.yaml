@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after AQ1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after AR1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1184,3 +1184,32 @@ tasks:
       - "Queued after AP1 root-cause analysis showed the next narrow route-registry seam is the inline auth-status/login pair and their duplicated guest-mode payload shaping."
       - "Completed by introducing create_auth_router(...) in lightrag/api/app_auth_routes.py, rewiring route_registry.py to include that router, and centralizing the shared guest-mode response payload builder."
       - "Focused regression coverage lives in tests/test_app_auth_routes.py, with tests/test_route_registry.py preserving the existing app-level behavior."
+
+  - id: AR1
+    title: "Extract the health route from route_registry.py"
+    priority: 47
+    status: completed
+    depends_on: [AQ1]
+    area: "api"
+    problem_statement: "The app route registry still defines the root `/health` endpoint inline, so app composition owns workspace resolution, health payload assembly, and error mapping for the system-status surface."
+    root_cause_hypothesis: "D1 split router-family inclusion from app startup, but the root health endpoint remained in `route_registry.py` because it depends on runtime args, workspace helpers, and auth state, so the health route seam never became its own explicit router factory."
+    definition_of_done:
+      - "A dedicated router factory owns the `/health` route logic"
+      - "`route_registry.py` includes that health router instead of defining the route inline"
+      - "Workspace resolution and health payload shaping live behind the extracted health-route seam"
+      - "Focused tests cover the health router contract plus preserved route-registry behavior"
+    validation_commands:
+      - "python -m ruff check lightrag/api/app_health_routes.py lightrag/api/route_registry.py tests/test_app_health_routes.py tests/test_route_registry.py"
+      - "python -m pytest tests/test_app_health_routes.py tests/test_route_registry.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/app_health_routes.py"
+      - "lightrag/api/route_registry.py"
+      - "tests/test_app_health_routes.py"
+      - "tests/test_route_registry.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after AQ1 root-cause analysis showed the next narrow route-registry seam is the inline health endpoint and its mixed responsibility for workspace lookup, status reads, and response shaping."
+      - "Completed by introducing create_health_router(...) in lightrag/api/app_health_routes.py, rewiring route_registry.py to include that router, and centralizing workspace resolution plus health payload assembly behind the extracted seam."
+      - "Focused regression coverage lives in tests/test_app_health_routes.py, with tests/test_route_registry.py preserving the app-composition behavior."
