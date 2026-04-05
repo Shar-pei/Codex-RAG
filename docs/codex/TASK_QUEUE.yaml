@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "AF1 completed by making create_document_routes(...) a true router factory, fixing duplicate document route registration across repeated app assembly"
+  current_focus: "AG1 completed by extracting Ollama API models out of ollama_api.py, reducing the largest active API router's mixed contract-and-runtime responsibility"
 
 tasks:
   - id: A0
@@ -893,3 +893,28 @@ tasks:
     notes:
       - "Completed by moving APIRouter construction inside create_document_routes(...) so the document router builder no longer mutates a shared module-level router across repeated calls."
       - "An empty module-level router remains only as a compatibility import surface for lightrag.api.routers.__init__."
+
+  - id: AG1
+    title: "Extract Ollama API models from ollama_api.py"
+    priority: 36
+    status: completed
+    depends_on: [AF1]
+    area: "api"
+    problem_statement: "The Ollama-compatible API module still mixes request/response schemas and query-mode enum declarations with router setup and runtime stream/query behavior in the largest active API router module."
+    root_cause_hypothesis: "Ollama request/response contracts accumulated directly inside ollama_api.py because the router became the default home for both API schemas and runtime handlers, even though those contracts do not depend on route state."
+    definition_of_done:
+      - "Ollama request/response schemas and SearchMode live in a dedicated module"
+      - "ollama_api.py preserves the existing import surface through compatibility re-exports"
+      - "Focused tests cover model re-exports and key parse_query_mode behaviors against the extracted enum contract"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/ollama_api.py lightrag/api/routers/ollama_models.py tests/test_ollama_models.py"
+      - "python -m pytest tests/test_ollama_models.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/ollama_api.py"
+      - "lightrag/api/routers/ollama_models.py"
+      - "tests/test_ollama_models.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving Ollama request/response schemas and the SearchMode enum into lightrag/api/routers/ollama_models.py while keeping ollama_api.py as the compatibility import surface."
