@@ -773,3 +773,18 @@
   - Ollama route wrappers now preserve client-facing validation status codes while still shielding unexpected failures behind 500 responses.
   - Focused route-level regression tests now lock both passthrough and fallback-500 behavior for `/api/generate` and `/api/chat`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-050: AM1 centralizes the Ollama NDJSON StreamingResponse wrapper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AL1`, `lightrag/api/routers/ollama_generate_handlers.py` and `lightrag/api/routers/ollama_chat_handlers.py` still each built the same `StreamingResponse` wrapper for NDJSON streaming.
+  - The duplicated block carried the same media type and the same four transport headers, so keeping it inline meant any future transport tweak would need to be repeated in two endpoint-specific modules.
+  - That wrapper is transport-level behavior; it does not depend on generate-specific or chat-specific payload shaping.
+- Decision:
+  - Introduce `lightrag/api/routers/ollama_streaming_responses.py` for the shared NDJSON `StreamingResponse` builder and transport constants.
+  - Reuse that helper from both generate and chat handlers instead of duplicating the wrapper setup inline.
+- Impact:
+  - Ollama streaming transport behavior now has one authoritative implementation for media type and headers.
+  - Focused tests now lock the shared wrapper contract and confirm both generate and chat handlers delegate to it.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.

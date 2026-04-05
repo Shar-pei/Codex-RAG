@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "AM1 pending after AL1: extract the duplicated Ollama NDJSON StreamingResponse wrapper so generate and chat handlers share one streaming-response builder"
+  current_focus: "AN1 pending after AM1: extract shared Ollama stream completion payload builders to remove duplicated done/error payload shaping across generate and chat iterators"
 
 tasks:
   - id: A0
@@ -1047,7 +1047,7 @@ tasks:
   - id: AM1
     title: "Extract shared Ollama streaming-response wrapper"
     priority: 42
-    status: pending
+    status: completed
     depends_on: [AL1]
     area: "api"
     problem_statement: "The extracted Ollama generate and chat handler modules both build the same NDJSON StreamingResponse wrapper inline, duplicating headers and response-shaping setup."
@@ -1068,4 +1068,31 @@ tasks:
       - "docs/codex/TASK_QUEUE.yaml"
       - "docs/codex/DECISIONS.md"
     notes:
-      - "Queued from AL1 follow-up analysis after route-level error handling was unified but both endpoint helpers still duplicated the same NDJSON StreamingResponse setup."
+      - "Completed by extracting the standard NDJSON StreamingResponse wrapper into lightrag/api/routers/ollama_streaming_responses.py and reusing it from both generate and chat handlers."
+      - "Focused regression coverage lives in tests/test_ollama_streaming_responses.py."
+
+  - id: AN1
+    title: "Extract shared Ollama stream completion payload builders"
+    priority: 43
+    status: pending
+    depends_on: [AM1]
+    area: "api"
+    problem_statement: "The Ollama generate and chat stream iterators still duplicate the final done payload timing/accounting block and their provider-error terminal payload shaping."
+    root_cause_hypothesis: "The earlier refactors split route/runtime ownership first and then centralized the transport wrapper, but the endpoint iterators still carry repeated completion and error payload construction because the payload shapes look slightly different at first glance."
+    definition_of_done:
+      - "Shared helpers build the common Ollama stream completion and error payload structure"
+      - "Generate and chat iterators reuse those helpers instead of duplicating the timing/accounting boilerplate"
+      - "Focused tests cover the shared payload-builder contract at the touched seam"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/ollama_generate_handlers.py lightrag/api/routers/ollama_chat_handlers.py lightrag/api/routers/ollama_stream_payloads.py tests/test_ollama_stream_payloads.py"
+      - "python -m pytest tests/test_ollama_stream_payloads.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/ollama_generate_handlers.py"
+      - "lightrag/api/routers/ollama_chat_handlers.py"
+      - "lightrag/api/routers/ollama_stream_payloads.py"
+      - "tests/test_ollama_stream_payloads.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued from AM1 follow-up analysis after the transport wrapper was unified but both iterators still duplicated terminal payload shaping logic."

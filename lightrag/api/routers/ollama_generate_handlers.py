@@ -4,9 +4,10 @@ import asyncio
 import json
 import time
 
-from fastapi.responses import StreamingResponse
-
 from lightrag.api.routers.ollama_request_helpers import estimate_tokens
+from lightrag.api.routers.ollama_streaming_responses import (
+    build_ollama_streaming_response,
+)
 from lightrag.utils import logger
 
 
@@ -20,20 +21,13 @@ async def execute_generate_request(rag, server_infos, request):
 
     if request.stream:
         response = await rag.llm_model_func(query, stream=True, **rag.llm_model_kwargs)
-        return StreamingResponse(
+        return build_ollama_streaming_response(
             iter_generate_stream_payloads(
                 response=response,
                 server_infos=server_infos,
                 prompt_tokens=prompt_tokens,
                 start_time=start_time,
-            ),
-            media_type="application/x-ndjson",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "Content-Type": "application/x-ndjson",
-                "X-Accel-Buffering": "no",
-            },
+            )
         )
 
     first_chunk_time = time.time_ns()

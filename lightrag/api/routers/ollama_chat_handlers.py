@@ -6,13 +6,15 @@ import re
 import time
 
 from fastapi import HTTPException
-from fastapi.responses import StreamingResponse
 
 from lightrag import QueryParam
 from lightrag.api.routers.ollama_models import SearchMode
 from lightrag.api.routers.ollama_request_helpers import (
     estimate_tokens,
     parse_query_mode,
+)
+from lightrag.api.routers.ollama_streaming_responses import (
+    build_ollama_streaming_response,
 )
 from lightrag.utils import logger
 
@@ -54,20 +56,13 @@ async def execute_chat_request(rag, server_infos, request, top_k):
             mode=mode,
             query_param=query_param,
         )
-        return StreamingResponse(
+        return build_ollama_streaming_response(
             iter_chat_stream_payloads(
                 response=response,
                 server_infos=server_infos,
                 prompt_tokens=prompt_tokens,
                 start_time=start_time,
-            ),
-            media_type="application/x-ndjson",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "Content-Type": "application/x-ndjson",
-                "X-Accel-Buffering": "no",
-            },
+            )
         )
 
     first_chunk_time = time.time_ns()
