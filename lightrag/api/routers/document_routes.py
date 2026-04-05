@@ -34,6 +34,12 @@ from lightrag.api.routers.document_manager import (
     DocumentManager,
     sanitize_filename,
 )
+from lightrag.api.routers.document_mutation_commands import (
+    clear_cache_response as _clear_cache_response,
+    delete_entity_response as _delete_entity_response,
+    delete_relation_response as _delete_relation_response,
+    initiate_document_deletion as _initiate_document_deletion,
+)
 from lightrag.api.routers.document_pipeline_control import (
     get_pipeline_status_response as _get_pipeline_status_response,
     request_pipeline_cancellation as _request_pipeline_cancellation,
@@ -87,6 +93,10 @@ get_documents_statuses_response = _get_documents_statuses_response
 get_track_status_response = _get_track_status_response
 get_paginated_documents_response = _get_paginated_documents_response
 get_document_status_counts_response = _get_document_status_counts_response
+initiate_document_deletion = _initiate_document_deletion
+clear_cache_response = _clear_cache_response
+delete_entity_response = _delete_entity_response
+delete_relation_response = _delete_relation_response
 
 
 router = APIRouter(
@@ -441,51 +451,12 @@ def create_document_routes(
             HTTPException:
               - 500: If an unexpected internal error occurs during initialization.
         """
-        doc_ids = delete_request.doc_ids
-
-        try:
-            from lightrag.kg.shared_storage import (
-                get_namespace_data,
-                get_namespace_lock,
-            )
-
-            pipeline_status = await get_namespace_data(
-                "pipeline_status", workspace=rag.workspace
-            )
-            pipeline_status_lock = get_namespace_lock(
-                "pipeline_status", workspace=rag.workspace
-            )
-
-            # Check if pipeline is busy with proper lock
-            async with pipeline_status_lock:
-                if pipeline_status.get("busy", False):
-                    return DeleteDocByIdResponse(
-                        status="busy",
-                        message="Cannot delete documents while pipeline is busy",
-                        doc_id=", ".join(doc_ids),
-                    )
-
-            # Add deletion task to background tasks
-            background_tasks.add_task(
-                background_delete_documents,
-                rag,
-                doc_manager,
-                doc_ids,
-                delete_request.delete_file,
-                delete_request.delete_llm_cache,
-            )
-
-            return DeleteDocByIdResponse(
-                status="deletion_started",
-                message=f"Document deletion for {len(doc_ids)} documents has been initiated. Processing will continue in background.",
-                doc_id=", ".join(doc_ids),
-            )
-
-        except Exception as e:
-            error_msg = f"Error initiating document deletion for {delete_request.doc_ids}: {str(e)}"
-            logger.error(error_msg)
-            logger.error(traceback.format_exc())
-            raise HTTPException(status_code=500, detail=error_msg)
+        return await initiate_document_deletion(
+            rag,
+            doc_manager,
+            delete_request,
+            background_tasks,
+        )
 
     @router.post(
         "/clear_cache",
@@ -508,18 +479,7 @@ def create_document_routes(
         Raises:
             HTTPException: If an error occurs during cache clearing (500).
         """
-        try:
-            # Call the aclear_cache method (no modes parameter)
-            await rag.aclear_cache()
-
-            # Prepare success message
-            message = "Successfully cleared all cache"
-
-            return ClearCacheResponse(status="success", message=message)
-        except Exception as e:
-            logger.error(f"Error clearing cache: {str(e)}")
-            logger.error(traceback.format_exc())
-            raise HTTPException(status_code=500, detail=str(e))
+        return await clear_cache_response(rag, request)
 
     @router.delete(
         "/delete_entity",
@@ -539,22 +499,7 @@ def create_document_routes(
         Raises:
             HTTPException: If the entity is not found (404) or an error occurs (500).
         """
-        try:
-            result = await rag.adelete_by_entity(entity_name=request.entity_name)
-            if result.status == "not_found":
-                raise HTTPException(status_code=404, detail=result.message)
-            if result.status == "fail":
-                raise HTTPException(status_code=500, detail=result.message)
-            # Set doc_id to empty string since this is an entity operation, not document
-            result.doc_id = ""
-            return result
-        except HTTPException:
-            raise
-        except Exception as e:
-            error_msg = f"Error deleting entity '{request.entity_name}': {str(e)}"
-            logger.error(error_msg)
-            logger.error(traceback.format_exc())
-            raise HTTPException(status_code=500, detail=error_msg)
+        return await delete_entity_response(rag, request)
 
     @router.delete(
         "/delete_relation",
@@ -574,25 +519,7 @@ def create_document_routes(
         Raises:
             HTTPException: If the relation is not found (404) or an error occurs (500).
         """
-        try:
-            result = await rag.adelete_by_relation(
-                source_entity=request.source_entity,
-                target_entity=request.target_entity,
-            )
-            if result.status == "not_found":
-                raise HTTPException(status_code=404, detail=result.message)
-            if result.status == "fail":
-                raise HTTPException(status_code=500, detail=result.message)
-            # Set doc_id to empty string since this is a relation operation, not document
-            result.doc_id = ""
-            return result
-        except HTTPException:
-            raise
-        except Exception as e:
-            error_msg = f"Error deleting relation from '{request.source_entity}' to '{request.target_entity}': {str(e)}"
-            logger.error(error_msg)
-            logger.error(traceback.format_exc())
-            raise HTTPException(status_code=500, detail=error_msg)
+        return await delete_relation_response(rag, request)
 
     @router.get(
         "/track_status/{track_id}",

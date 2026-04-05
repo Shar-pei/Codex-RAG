@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Q1 completed by extracting read-only document status query helpers out of document_routes.py, leaving the router with less response-assembly logic"
+  current_focus: "R1 completed by extracting mutation command helpers out of document_routes.py, leaving the router with less command orchestration logic"
 
 tasks:
   - id: A0
@@ -518,3 +518,28 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving grouped, tracked, paginated, and aggregated document status query helpers into lightrag/api/routers/document_status_queries.py while keeping document_routes.py as the compatibility import surface."
+
+  - id: R1
+    title: "Extract document mutation command helpers from document_routes.py"
+    priority: 21
+    status: completed
+    depends_on: [Q1]
+    area: "api"
+    problem_statement: "The document API router still owns mutation command logic for deletion scheduling, cache clearing, entity deletion, and relation deletion alongside route definitions."
+    root_cause_hypothesis: "Command-style endpoints accumulated inline in document_routes.py because they were added directly next to their routes, even though the logic depends on shared pipeline state, LightRAG command calls, and API-facing error normalization rather than route state."
+    definition_of_done:
+      - "Mutation command helpers live in a dedicated module"
+      - "document_routes.py preserves the helper import surface through compatibility aliases"
+      - "Focused tests cover re-exports plus key behaviors such as busy-state deletion refusal, cache clearing, and deletion error normalization"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/document_routes.py lightrag/api/routers/document_mutation_commands.py tests/test_document_mutation_commands.py"
+      - "python -m pytest tests/test_document_mutation_commands.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/document_routes.py"
+      - "lightrag/api/routers/document_mutation_commands.py"
+      - "tests/test_document_mutation_commands.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving deletion scheduling, cache clearing, entity deletion, and relation deletion helpers into lightrag/api/routers/document_mutation_commands.py while keeping document_routes.py as the compatibility import surface."

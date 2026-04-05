@@ -441,3 +441,19 @@
   - `document_routes.py` drops another block of response-assembly logic and moves closer to a route-only composition layer.
   - Shared `DocStatusResponse` construction now lives in one place for the extracted query paths, which reduces mapping drift across grouped, tracked, and paginated reads.
   - Follow-on cleanup can focus on the remaining mutation endpoints as a separate seam instead of mixing them with read-only status queries.
+
+## DCR-029: R1 moves mutation command behavior behind a mutation-command seam
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `Q1`, the main non-route block left in `lightrag/api/routers/document_routes.py` was the set of mutation command endpoints: document deletion scheduling, cache clearing, entity deletion, and relation deletion.
+  - Those handlers owned shared pipeline busy checks, background task wiring, and API-facing error normalization for `DeletionResult`, but they did not depend on route-local request parsing beyond the already-validated request models.
+  - Keeping that logic inline would leave the router responsible for both endpoint composition and command orchestration after the read-side extraction work.
+- Decision:
+  - Introduce `lightrag/api/routers/document_mutation_commands.py` for `initiate_document_deletion(...)`, `clear_cache_response(...)`, `delete_entity_response(...)`, and `delete_relation_response(...)`.
+  - Import those helpers back into `lightrag/api/routers/document_routes.py` so the router remains the compatibility surface for extracted document helpers.
+  - Leave upload/text insertion entrypoints in `document_routes.py` for now because they still combine route-local validation with ingestion scheduling and are better handled as a separate seam.
+- Impact:
+  - `document_routes.py` sheds another cluster of command orchestration and moves closer to a route-only layer.
+  - Mutation behavior now has direct regression tests for busy-state deletion refusal, cache clearing, and deletion error mapping without importing the full router.
+  - Follow-on cleanup can target the remaining upload/text insertion entrypoints as a separate seam instead of mixing them with delete and cache commands.
