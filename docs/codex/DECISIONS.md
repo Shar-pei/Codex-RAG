@@ -584,3 +584,18 @@
   - Repeated `create_query_routes(...)` calls no longer accumulate duplicate query endpoints.
   - The function name and behavior now match: it is a true router factory rather than a wrapper around a mutable singleton.
   - Focused regression tests now lock the fresh-router and no-duplicate-registration behavior so later refactors do not reintroduce this bug.
+
+## DCR-038: AA1 makes create_graph_routes a real APIRouter factory
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - `lightrag/api/routers/graph_routes.py` followed the same pattern that previously broke `query_routes.py`: a module-level `APIRouter` plus a `create_graph_routes(...)` wrapper that looked like a factory.
+  - Root-cause checks showed the bug directly: calling `create_graph_routes(...)` twice yielded 20 routes, with the same 10 graph endpoints duplicated in order on the shared router.
+  - `route_registry.register_app_routes(...)` includes the graph router through `create_graph_routes(...)`, so the safe contract is again "return a fresh router" rather than "mutate a hidden singleton."
+- Decision:
+  - Move `APIRouter(tags=["graph"])` construction inside `create_graph_routes(...)`.
+  - Retain an empty module-level `router` only as a compatibility import surface for `lightrag.api.routers.__init__`.
+- Impact:
+  - Repeated `create_graph_routes(...)` calls no longer accumulate duplicate graph endpoints.
+  - The function name and behavior now match: it is a true router factory rather than a wrapper around a mutable singleton.
+  - Focused regression tests now lock the fresh-router and no-duplicate-registration behavior for the graph router too.

@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Z1 completed by turning create_query_routes into a true router factory, eliminating duplicate query route registration across repeated calls"
+  current_focus: "AA1 completed by turning create_graph_routes into a true router factory, eliminating duplicate graph route registration across repeated calls"
 
 tasks:
   - id: A0
@@ -742,4 +742,29 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Completed by moving APIRouter construction inside create_query_routes(...) so the query router builder no longer mutates a shared module-level router across repeated calls."
+      - "An empty module-level router remains only as a compatibility import surface for lightrag.api.routers.__init__."
+
+  - id: AA1
+    title: "Make create_graph_routes a true router factory"
+    priority: 30
+    status: completed
+    depends_on: [Z1]
+    area: "api"
+    problem_statement: "The graph route builder still registers handlers onto a shared module-level APIRouter, so repeated create_graph_routes(...) calls duplicate the same graph endpoints."
+    root_cause_hypothesis: "The module started with a singleton router for decorator convenience, and later wrapped route registration in a factory function without moving the APIRouter allocation inside that factory."
+    definition_of_done:
+      - "Each create_graph_routes(...) call returns a fresh APIRouter instance"
+      - "Repeated factory calls do not accumulate duplicate graph route registrations"
+      - "Focused tests cover the fresh-router and no-duplicate-registration behavior"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/graph_routes.py tests/test_graph_router_factory.py"
+      - "python -m pytest tests/test_graph_router_factory.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/graph_routes.py"
+      - "tests/test_graph_router_factory.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Completed by moving APIRouter construction inside create_graph_routes(...) so the graph router builder no longer mutates a shared module-level router across repeated calls."
       - "An empty module-level router remains only as a compatibility import surface for lightrag.api.routers.__init__."
