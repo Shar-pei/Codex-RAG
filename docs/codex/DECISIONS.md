@@ -1171,3 +1171,19 @@
   - `lightrag_server.py` sheds another narrow route-assembly block and moves closer to pure app assembly plus runtime wiring.
   - The route-context seam now has focused regression coverage for hydrated startup state and both explicit and lazy auth-handler resolution in `tests/test_app_route_context.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-075: BL1 moves Ollama server metadata assembly behind a helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BK1`, `lightrag/api/lightrag_server.py` still instantiated `OllamaServerInfos(...)` inline before `LightRAG` construction.
+  - That metadata object only depends on the runtime's simulated model name and tag, with fallback behavior already encapsulated by `OllamaServerInfos` itself.
+  - Keeping the instantiation in `create_app()` left another small but distinct config-assembly rule inside the app-factory module.
+- Decision:
+  - Introduce `lightrag/api/ollama_server_info.py` with `build_ollama_server_infos(args)` as the authoritative helper for Ollama-compatible model metadata assembly.
+  - Rewire `lightrag/api/lightrag_server.py` to call that helper instead of constructing `OllamaServerInfos` inline.
+  - Preserve the existing runtime-arg and env-fallback behavior without widening this run into the larger `LightRAG` constructor extraction.
+- Impact:
+  - `lightrag_server.py` sheds another narrow config-assembly block and moves incrementally closer to pure app assembly plus runtime wiring.
+  - The extracted seam now has focused regression coverage for explicit runtime values and env-driven fallback behavior in `tests/test_ollama_server_info.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.

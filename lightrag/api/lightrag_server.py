@@ -23,6 +23,7 @@ from lightrag.api.embedding_model_factory import build_embedding_func
 from lightrag.api.llm_config_cache import LLMConfigCache
 from lightrag.api.llm_model_factory import build_llm_model_func
 from lightrag.api.llm_model_kwargs import build_llm_model_kwargs
+from lightrag.api.ollama_server_info import build_ollama_server_infos
 from lightrag.api.query_validation_handlers import (
     create_query_validation_exception_handler,
 )
@@ -95,12 +96,7 @@ def create_app(args):
 
     rerank_model_func = build_rerank_model_func(args)
 
-    # Create ollama_server_infos from command line arguments
-    from lightrag.api.config import OllamaServerInfos
-
-    ollama_server_infos = OllamaServerInfos(
-        name=args.simulated_model_name, tag=args.simulated_model_tag
-    )
+    ollama_server_infos = build_ollama_server_infos(args)
 
     # Initialize RAG with unified configuration
     try:

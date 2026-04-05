@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after BK1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after BL1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1748,3 +1748,31 @@ tasks:
       - "Queued after BJ1 root-cause analysis showed the next narrow route-assembly seam in `create_app()` is `RouteRegistryContext` construction plus auth-handler hydration, not the larger LightRAG constructor."
       - "Completed by introducing `build_route_registry_context(...)` in lightrag/api/app_route_context.py and rewiring lightrag_server.py to call that helper."
       - "Focused regression coverage lives in tests/test_app_route_context.py."
+
+  - id: BL1
+    title: "Extract Ollama server info assembly from lightrag_server.py"
+    priority: 67
+    status: completed
+    depends_on: [BK1]
+    area: "api"
+    problem_statement: "After `BK1`, the FastAPI server entrypoint still constructs `OllamaServerInfos` inline, so app construction still owns one model-metadata assembly seam."
+    root_cause_hypothesis: "The `OllamaServerInfos(...)` block only depends on `args.simulated_model_name` and `args.simulated_model_tag`, so this Ollama-compatible metadata contract belongs in a dedicated helper rather than remaining embedded in `create_app()`."
+    definition_of_done:
+      - "A dedicated helper module owns `OllamaServerInfos` assembly from runtime args"
+      - "`lightrag_server.py` uses that helper instead of constructing `OllamaServerInfos` inline"
+      - "The existing runtime-arg and env-fallback behavior remain unchanged"
+      - "Focused tests cover explicit runtime values and env-driven fallback behavior"
+    validation_commands:
+      - "python -m ruff check lightrag/api/ollama_server_info.py lightrag/api/lightrag_server.py tests/test_ollama_server_info.py"
+      - "python -m pytest tests/test_ollama_server_info.py -q"
+    risk_level: "low"
+    expected_files:
+      - "lightrag/api/ollama_server_info.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_ollama_server_info.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BK1 root-cause analysis showed the next narrow config-assembly seam in `create_app()` is the inline `OllamaServerInfos` construction rather than the larger LightRAG constructor."
+      - "Completed by introducing lightrag/api/ollama_server_info.py and rewiring lightrag_server.py to call `build_ollama_server_infos(args)`."
+      - "Focused regression coverage lives in tests/test_ollama_server_info.py."
