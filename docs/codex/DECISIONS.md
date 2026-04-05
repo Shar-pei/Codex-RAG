@@ -757,3 +757,19 @@
   - `ollama_api.py` sheds its remaining large runtime endpoint block and moves closer to a route-registration shell.
   - Ollama chat behavior now has focused regression coverage for request validation, non-stream fallback text, string-based streaming payload assembly, and stream-error normalization without importing the full router runtime.
   - A follow-on task can target any remaining router-shape cleanup without carrying the full `/chat` execution logic inline.
+
+## DCR-049: AL1 preserves FastAPI HTTPException status codes at the Ollama route boundary
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AK1`, the remaining `/generate` and `/chat` route closures in `lightrag/api/routers/ollama_api.py` still wrapped their bodies with `except Exception`.
+  - `parse_request_body(...)` and the extracted generate/chat helpers intentionally raise `HTTPException` for client-facing validation failures such as invalid JSON bodies or a non-user terminal chat message.
+  - The broad wrapper was converting those intended 4xx responses into 500 errors, so the route boundary no longer preserved FastAPI's status-code semantics.
+- Decision:
+  - Introduce a tiny shared route-error helper inside `lightrag/api/routers/ollama_api.py`.
+  - Re-raise `HTTPException` unchanged from that helper.
+  - Keep logging plus 500 translation for truly unexpected exceptions.
+- Impact:
+  - Ollama route wrappers now preserve client-facing validation status codes while still shielding unexpected failures behind 500 responses.
+  - Focused route-level regression tests now lock both passthrough and fallback-500 behavior for `/api/generate` and `/api/chat`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.

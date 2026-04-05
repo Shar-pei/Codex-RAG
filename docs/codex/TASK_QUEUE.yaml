@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "AL1 pending after AK1: preserve HTTPException status codes in Ollama /generate and /chat route wrappers instead of rewrapping client errors as 500s"
+  current_focus: "AM1 pending after AL1: extract the duplicated Ollama NDJSON StreamingResponse wrapper so generate and chat handlers share one streaming-response builder"
 
 tasks:
   - id: A0
@@ -1022,7 +1022,7 @@ tasks:
   - id: AL1
     title: "Preserve HTTPException status codes in Ollama route wrappers"
     priority: 41
-    status: pending
+    status: completed
     depends_on: [AK1]
     area: "api"
     problem_statement: "The Ollama /generate and /chat route wrappers currently catch FastAPI HTTPException instances and rewrap them as 500 responses, which turns client validation failures into server errors."
@@ -1041,4 +1041,31 @@ tasks:
       - "docs/codex/TASK_QUEUE.yaml"
       - "docs/codex/DECISIONS.md"
     notes:
-      - "Queued from AK1 follow-up analysis after the /chat extraction exposed that route-level logging wrappers still swallow HTTPException status codes."
+      - "Completed by routing generate/chat wrapper failures through a shared helper that re-raises HTTPException unchanged and only maps unexpected exceptions to 500 responses."
+      - "Focused regression coverage lives in tests/test_ollama_route_error_passthrough.py."
+
+  - id: AM1
+    title: "Extract shared Ollama streaming-response wrapper"
+    priority: 42
+    status: pending
+    depends_on: [AL1]
+    area: "api"
+    problem_statement: "The extracted Ollama generate and chat handler modules both build the same NDJSON StreamingResponse wrapper inline, duplicating headers and response-shaping setup."
+    root_cause_hypothesis: "Streaming response assembly stayed attached to each endpoint-specific handler because the earlier refactors focused on splitting runtime flows first, so the cross-endpoint NDJSON transport seam never got its own shared helper."
+    definition_of_done:
+      - "A shared helper builds the standard Ollama NDJSON StreamingResponse wrapper"
+      - "Generate and chat handlers reuse that helper instead of duplicating the header/media-type setup"
+      - "Focused tests cover the shared wrapper contract or the preserved header behavior at the touched seam"
+    validation_commands:
+      - "python -m ruff check lightrag/api/routers/ollama_generate_handlers.py lightrag/api/routers/ollama_chat_handlers.py lightrag/api/routers/ollama_streaming_responses.py tests/test_ollama_streaming_responses.py"
+      - "python -m pytest tests/test_ollama_streaming_responses.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/routers/ollama_generate_handlers.py"
+      - "lightrag/api/routers/ollama_chat_handlers.py"
+      - "lightrag/api/routers/ollama_streaming_responses.py"
+      - "tests/test_ollama_streaming_responses.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued from AL1 follow-up analysis after route-level error handling was unified but both endpoint helpers still duplicated the same NDJSON StreamingResponse setup."

@@ -65,6 +65,14 @@ execute_chat_request = _execute_chat_request
 iter_chat_stream_payloads = _iter_chat_stream_payloads
 
 
+def _raise_ollama_route_error(route_name: str, exc: Exception) -> None:
+    if isinstance(exc, HTTPException):
+        raise exc
+
+    logger.error(f"Ollama {route_name} error: {str(exc)}", exc_info=True)
+    raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 class OllamaAPI:
     def __init__(self, rag: LightRAG, top_k: int = 60, api_key: Optional[str] = None):
         self.rag = rag
@@ -107,9 +115,8 @@ class OllamaAPI:
                 return await execute_generate_request(
                     self.rag, self.ollama_server_infos, request
                 )
-            except Exception as e:
-                logger.error(f"Ollama generate error: {str(e)}", exc_info=True)
-                raise HTTPException(status_code=500, detail=str(e))
+            except Exception as exc:
+                _raise_ollama_route_error("generate", exc)
 
         @self.router.post(
             "/chat", dependencies=[Depends(combined_auth)], include_in_schema=True
@@ -128,6 +135,5 @@ class OllamaAPI:
                     request,
                     self.top_k,
                 )
-            except Exception as e:
-                logger.error(f"Ollama chat error: {str(e)}", exc_info=True)
-                raise HTTPException(status_code=500, detail=str(e))
+            except Exception as exc:
+                _raise_ollama_route_error("chat", exc)
