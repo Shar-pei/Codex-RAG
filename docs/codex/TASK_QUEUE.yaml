@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "Queue clear after AS1: no pending tasks remain; add the next prioritized task before the next Codex run"
+  current_focus: "Queue clear after AT1: no pending tasks remain; add the next prioritized task before the next Codex run"
 
 tasks:
   - id: A0
@@ -1242,3 +1242,31 @@ tasks:
       - "Queued after AR1 root-cause analysis showed the next narrow route-registry seam is the inline app shell route set for Swagger docs, root redirect, and no-WebUI fallback."
       - "Completed by introducing create_app_shell_router(...) in lightrag/api/app_shell_routes.py, rewiring route_registry.py to include that router, and moving the root/docs/no-WebUI redirect behavior behind the extracted shell seam."
       - "Focused regression coverage lives in tests/test_app_shell_routes.py, with tests/test_route_registry.py preserving the existing app-composition behavior."
+
+  - id: AT1
+    title: "Extract static asset mounting from route_registry.py"
+    priority: 49
+    status: completed
+    depends_on: [AS1]
+    area: "api"
+    problem_statement: "The app route registry still owns the Swagger static mount, the WebUI static mount, and the `SmartStaticFiles` cache-header policy, so app composition continues to mix static asset delivery with router assembly."
+    root_cause_hypothesis: "D1 and the follow-on route extractions focused on HTTP route handlers first, but the static mount block remained in `route_registry.py` because it depends on local asset paths and the custom WebUI cache policy, so the static-delivery seam never became its own helper module."
+    definition_of_done:
+      - "A dedicated helper module owns Swagger/WebUI static mounting and the custom WebUI static-files response policy"
+      - "`route_registry.py` uses that helper instead of mounting static assets inline"
+      - "Focused tests cover both the extracted mount behavior and the preserved cache-header contract"
+    validation_commands:
+      - "python -m ruff check lightrag/api/app_static_mounts.py lightrag/api/route_registry.py tests/test_app_static_mounts.py tests/test_route_registry.py"
+      - "python -m pytest tests/test_app_static_mounts.py tests/test_route_registry.py -q"
+    risk_level: "medium"
+    expected_files:
+      - "lightrag/api/app_static_mounts.py"
+      - "lightrag/api/route_registry.py"
+      - "tests/test_app_static_mounts.py"
+      - "tests/test_route_registry.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after AS1 root-cause analysis showed the next narrow route-registry seam is the inline static asset mount block plus the custom WebUI cache-header policy."
+      - "Completed by introducing register_static_mounts(...) and SmartStaticFiles in lightrag/api/app_static_mounts.py, rewiring route_registry.py to delegate static mounting there, and adding focused mount/header tests."
+      - "The new cache-header coverage also fixed a real Windows path-normalization bug where `assets\\\\...` paths skipped the intended long-lived WebUI asset cache policy."

@@ -883,3 +883,19 @@
   - Route registry moves closer to a pure app-composition layer.
   - The app shell routes now have one authoritative home for Swagger UI and redirect behavior.
   - Focused tests now lock both the shell-router contract and the preserved app-level behavior without changing external API paths or response shapes, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-057: AT1 moves static asset mounting behind a static-delivery helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `AS1`, `lightrag/api/route_registry.py` still owned the Swagger static mount, the WebUI static mount, and the `SmartStaticFiles` cache-header behavior.
+  - That block depends on local asset paths plus the custom WebUI cache policy, but it does not depend on router-family composition.
+  - Focused tests added for this seam exposed a real bug on Windows: Starlette passed mounted asset paths such as `assets\\app.js`, so the old `"/assets/"` cache check never matched and long-lived WebUI asset caching was silently skipped.
+- Decision:
+  - Introduce `lightrag/api/app_static_mounts.py` with `register_static_mounts(...)` plus `SmartStaticFiles` as the explicit static-delivery seam.
+  - Rewire `lightrag/api/route_registry.py` to delegate Swagger/WebUI mounting through that helper instead of owning the mounts inline.
+  - Normalize mounted asset paths inside `SmartStaticFiles.get_response(...)` before applying cache and content-type rules so the policy works on both POSIX and Windows path separators.
+- Impact:
+  - Route registry moves closer to a pure composition layer.
+  - Static asset delivery now has one authoritative home for mount behavior and WebUI cache/header policy.
+  - Focused tests now lock both the extracted mount behavior and the corrected cross-platform cache-header contract without changing external API paths, so `docs/codex/CONTRACTS.md` did not require an update for this task.

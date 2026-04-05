@@ -64,6 +64,7 @@ def _make_router(prefix: str, suffix: str) -> APIRouter:
 
 def _patch_route_builders(monkeypatch):
     route_registry = _route_registry()
+    static_mount_calls = []
     monkeypatch.setattr(
         route_registry,
         "create_document_routes",
@@ -97,7 +98,12 @@ def _patch_route_builders(monkeypatch):
         "get_combined_auth_dependency",
         lambda api_key: (lambda: None),
     )
-    return route_registry
+    monkeypatch.setattr(
+        route_registry,
+        "register_static_mounts",
+        lambda app, webui_assets_exist: static_mount_calls.append(webui_assets_exist),
+    )
+    return route_registry, static_mount_calls
 
 
 def _auth_handler(accounts: dict[str, str] | None = None) -> SimpleNamespace:
@@ -109,7 +115,7 @@ def _auth_handler(accounts: dict[str, str] | None = None) -> SimpleNamespace:
 
 
 def test_register_app_routes_guest_mode_and_docs_redirect(monkeypatch):
-    route_registry = _patch_route_builders(monkeypatch)
+    route_registry, static_mount_calls = _patch_route_builders(monkeypatch)
     auth_handler = _auth_handler()
 
     app = FastAPI()
@@ -126,6 +132,7 @@ def test_register_app_routes_guest_mode_and_docs_redirect(monkeypatch):
         auth_handler=auth_handler,
     )
     route_registry.register_app_routes(app, context)
+    assert static_mount_calls == [False]
 
     client = TestClient(app)
 
@@ -155,7 +162,7 @@ def test_register_app_routes_guest_mode_and_docs_redirect(monkeypatch):
 
 
 def test_register_app_routes_mounts_prefixed_routers_and_webui_redirect(monkeypatch):
-    route_registry = _patch_route_builders(monkeypatch)
+    route_registry, static_mount_calls = _patch_route_builders(monkeypatch)
     auth_handler = _auth_handler({"alice": "secret"})
 
     app = FastAPI()
@@ -172,6 +179,7 @@ def test_register_app_routes_mounts_prefixed_routers_and_webui_redirect(monkeypa
         auth_handler=auth_handler,
     )
     route_registry.register_app_routes(app, context)
+    assert static_mount_calls == [True]
 
     paths = {route.path for route in app.routes if hasattr(route, "path")}
     assert "/documents/stub" in paths
