@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "CA1 is now the highest-priority pending task: extract the remaining compatibility wrapper exports from `lightrag_server.py` after BZ1 moved the last module-level bootstrap globals behind a state helper"
+  current_focus: "CB1 is now the highest-priority pending task: reduce `lightrag_server.py` to pure bootstrap-state and compatibility re-exports after CA1 moved the last wrapper definitions behind a helper module"
 
 tasks:
   - id: A0
@@ -2172,7 +2172,7 @@ tasks:
   - id: CA1
     title: "Extract remaining compatibility wrapper exports from lightrag_server.py"
     priority: 82
-    status: pending
+    status: completed
     depends_on: [BZ1]
     area: "api"
     problem_statement: "After `BZ1`, `lightrag_server.py` no longer owns behavior or bootstrap state, but it still defines the remaining compatibility wrapper exports inline: `create_app()`, `get_application()`, `configure_logging()`, `check_and_install_dependencies()`, and `main()`."
@@ -2194,3 +2194,30 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Queued after BZ1 root-cause analysis showed the remaining hotspot in `lightrag_server.py` is the last inline compatibility wrapper layer rather than any runtime or bootstrap behavior."
+      - "Completed by introducing `lightrag/api/entrypoint_exports.py` for compatibility wrapper ownership, then rewiring `lightrag_server.py` to re-export those wrappers."
+      - "Focused regression coverage lives in `tests/test_entrypoint_exports.py`."
+
+  - id: CB1
+    title: "Collapse lightrag_server.py to pure compatibility re-exports"
+    priority: 83
+    status: pending
+    depends_on: [CA1]
+    area: "api"
+    problem_statement: "After `CA1`, `lightrag_server.py` no longer defines wrapper functions, but it still names local compatibility globals for bootstrap state instead of converging on a minimal re-export-only module."
+    root_cause_hypothesis: "Previous tasks extracted behavior, bootstrap state, and wrapper ownership incrementally, but the final compatibility module still keeps one thin aliasing layer because no task has yet collapsed it to direct re-exports of the extracted seams."
+    definition_of_done:
+      - "`lightrag_server.py` is reduced to the smallest practical compatibility surface for bootstrap state and entrypoint exports"
+      - "Any remaining local aliasing in `lightrag_server.py` is removed or documented as required compatibility behavior"
+      - "The existing public import surface and process-entrypoint behavior remain unchanged"
+      - "Focused tests cover the remaining compatibility surface"
+    validation_commands:
+      - "python -m ruff check lightrag/api/lightrag_server.py tests/test_lightrag_server_exports.py"
+      - "python -m pytest tests/test_lightrag_server_exports.py -q"
+    risk_level: "low"
+    expected_files:
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_lightrag_server_exports.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after CA1 root-cause analysis showed the remaining work in `lightrag_server.py` is the last aliasing-only compatibility layer rather than any owned behavior."

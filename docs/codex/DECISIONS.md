@@ -1411,3 +1411,19 @@
   - `lightrag_server.py` sheds the last inline import-time bootstrap state and moves closer to a pure compatibility facade.
   - The extracted seam now has focused regression coverage for bootstrap-state construction and module-level exports in `tests/test_entrypoint_bootstrap_state.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-090: CA1 moves the remaining compatibility wrapper exports behind a helper module
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BZ1`, `lightrag/api/lightrag_server.py` no longer owned behavior or bootstrap state, but it still defined the last compatibility wrapper exports inline: `create_app()`, `get_application()`, `configure_logging()`, `check_and_install_dependencies()`, and `main()`.
+  - Those wrappers had become a pure compatibility layer over already-extracted facade and bootstrap helpers, but the entrypoint module still had to define them directly.
+  - Leaving those exports inline meant `lightrag_server.py` had not yet converged on a simple re-exporting compatibility surface.
+- Decision:
+  - Introduce `lightrag/api/entrypoint_exports.py` as the authoritative owner of the remaining compatibility wrapper exports.
+  - Rewire `lightrag/api/lightrag_server.py` to re-export those wrapper functions instead of defining them inline.
+  - Preserve the existing public entrypoint names, `global_args` defaulting, logging and startup wiring, and import-time bootstrap-state exports without widening this run into other entrypoint modules.
+- Impact:
+  - `lightrag_server.py` now acts as a thinner compatibility facade over dedicated bootstrap-state and export helpers.
+  - The extracted seam now has focused regression coverage for wrapper forwarding and default `get_application()` behavior in `tests/test_entrypoint_exports.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
