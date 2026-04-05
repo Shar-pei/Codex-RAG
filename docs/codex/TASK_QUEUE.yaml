@@ -3,7 +3,7 @@ meta:
   branch_policy: "work only on codex/* branches"
   task_selection_rule: "pick the highest-priority task with status pending and no incomplete dependencies"
   commit_policy: "complete one closed-loop task, validate, update docs, commit, push"
-  current_focus: "BY1 is now the highest-priority pending task: extract thin entrypoint delegate bindings from `lightrag_server.py` after BX1 moved import-time runtime bootstrap behind a helper"
+  current_focus: "BZ1 is now the highest-priority pending task: extract remaining module-level bootstrap globals from `lightrag_server.py` after BY1 moved thin entrypoint delegate bindings behind a facade"
 
 tasks:
   - id: A0
@@ -2116,7 +2116,7 @@ tasks:
   - id: BY1
     title: "Extract thin entrypoint delegate bindings from lightrag_server.py"
     priority: 80
-    status: pending
+    status: completed
     depends_on: [BX1]
     area: "api"
     problem_statement: "After `BX1`, `lightrag_server.py` is mostly a thin facade, but it still binds helpers to module globals and constants inline across `create_app()`, `configure_logging()`, `check_and_install_dependencies()`, and `main()`."
@@ -2138,3 +2138,31 @@ tasks:
       - "docs/codex/DECISIONS.md"
     notes:
       - "Queued after BX1 root-cause analysis showed the remaining hotspot in `lightrag_server.py` is the thin global-binding facade rather than any deeper runtime behavior."
+      - "Completed by introducing `lightrag/api/entrypoint_facade.py` for facade-level global and constant binding, then rewiring `lightrag_server.py` so its wrapper functions delegate to that helper."
+      - "Focused regression coverage lives in `tests/test_entrypoint_facade.py`."
+
+  - id: BZ1
+    title: "Extract module-level bootstrap globals from lightrag_server.py"
+    priority: 81
+    status: pending
+    depends_on: [BY1]
+    area: "api"
+    problem_statement: "After `BY1`, `lightrag_server.py` is almost entirely a facade, but it still owns the remaining module-level bootstrap globals inline: `pm = get_pipmaster()` and `config = bootstrap_runtime_environment()`."
+    root_cause_hypothesis: "Previous tasks extracted behavior and facade bindings, but the last module-level runtime globals remained embedded in `lightrag_server.py` because the entrypoint never received a dedicated bootstrap-state helper for those import-time values."
+    definition_of_done:
+      - "A dedicated helper module owns the remaining module-level bootstrap globals used by the API entrypoint"
+      - "`lightrag_server.py` imports those bootstrap globals instead of constructing them inline"
+      - "The existing pipmaster lookup and runtime bootstrap behavior remain unchanged"
+      - "Focused tests cover representative bootstrap-global construction and forwarding"
+    validation_commands:
+      - "python -m ruff check lightrag/api/entrypoint_bootstrap_state.py lightrag/api/lightrag_server.py tests/test_entrypoint_bootstrap_state.py"
+      - "python -m pytest tests/test_entrypoint_bootstrap_state.py -q"
+    risk_level: "low"
+    expected_files:
+      - "lightrag/api/entrypoint_bootstrap_state.py"
+      - "lightrag/api/lightrag_server.py"
+      - "tests/test_entrypoint_bootstrap_state.py"
+      - "docs/codex/TASK_QUEUE.yaml"
+      - "docs/codex/DECISIONS.md"
+    notes:
+      - "Queued after BY1 root-cause analysis showed the remaining hotspot in `lightrag_server.py` is the last module-level bootstrap globals rather than the already-extracted facade bindings."

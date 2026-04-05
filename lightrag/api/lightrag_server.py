@@ -5,10 +5,12 @@ LightRAG FastAPI Server
 import os
 import logging
 from lightrag._pipmaster import get_pipmaster
-from lightrag.api.app_composition import build_app_composition
-from lightrag.api.dependency_bootstrap import ensure_required_packages
-from lightrag.api.logging_setup import configure_server_logging
-from lightrag.api.process_entrypoint import run_process_entrypoint
+from lightrag.api.entrypoint_facade import (
+    check_dependencies_with_bindings,
+    configure_logging_with_bindings,
+    create_app_with_bindings,
+    run_main_with_bindings,
+)
 from lightrag.api.runtime_bootstrap import bootstrap_runtime_environment
 from lightrag.api.server_startup import run_server_startup
 from lightrag.api.utils_api import display_splash_screen, check_env_file
@@ -31,7 +33,7 @@ config = bootstrap_runtime_environment()
 
 
 def create_app(args):
-    return build_app_composition(
+    return create_app_with_bindings(
         args=args,
         api_version=__api_version__,
         cors_origins=global_args.cors_origins,
@@ -47,7 +49,7 @@ def get_application(args=None):
 
 def configure_logging():
     """Configure logging for uvicorn startup."""
-    configure_server_logging(
+    configure_logging_with_bindings(
         default_log_filename=DEFAULT_LOG_FILENAME,
         default_log_max_bytes=DEFAULT_LOG_MAX_BYTES,
         default_log_backup_count=DEFAULT_LOG_BACKUP_COUNT,
@@ -60,19 +62,13 @@ def configure_logging():
 
 def check_and_install_dependencies():
     """Check and install required dependencies."""
-    required_packages = [
-        "uvicorn",
-        "tiktoken",
-        "fastapi",
-        # Add other required packages here
-    ]
-    ensure_required_packages(required_packages=required_packages, package_manager=pm)
+    check_dependencies_with_bindings(package_manager=pm)
 
 
 def main():
     from .config import initialize_config
 
-    run_process_entrypoint(
+    run_main_with_bindings(
         global_args=global_args,
         app_builder=create_app,
         dependency_checker=check_and_install_dependencies,

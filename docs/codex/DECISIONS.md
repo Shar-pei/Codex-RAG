@@ -1379,3 +1379,19 @@
   - `lightrag_server.py` sheds another import-time bootstrap seam and moves incrementally closer to a minimal entrypoint facade.
   - The extracted seam now has focused regression coverage for dotenv/bootstrap forwarding in `tests/test_runtime_bootstrap.py`.
   - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
+
+## DCR-088: BY1 moves the remaining thin entrypoint bindings behind a facade helper
+- Date: 2026-04-05
+- Status: accepted
+- Context:
+  - After `BX1`, `lightrag/api/lightrag_server.py` had become mostly a facade, but it still bound globals and constants inline across `create_app()`, `configure_logging()`, `check_and_install_dependencies()`, and `main()`.
+  - Those wrappers no longer contained deep behavior, but they still duplicated one layer of binding logic between entrypoint globals and the extracted helper modules.
+  - Keeping those bindings spread across multiple tiny wrappers left the entrypoint module as the last place where global arguments, constants, and helper dependencies were wired together manually.
+- Decision:
+  - Introduce `lightrag/api/entrypoint_facade.py` with facade helpers for app creation, logging setup, dependency bootstrap, and main-entrypoint delegation.
+  - Rewire `lightrag/api/lightrag_server.py` so its thin wrapper functions delegate to that facade helper instead of binding globals and constants inline.
+  - Preserve the existing `global_args`, logging constants, required package list, and startup helper wiring without widening this run into the remaining module-level bootstrap globals.
+- Impact:
+  - `lightrag_server.py` sheds the remaining thin binding layer and moves incrementally closer to a pure re-exporting entrypoint facade.
+  - The extracted seam now has focused regression coverage for facade binding and helper-call forwarding in `tests/test_entrypoint_facade.py`.
+  - No external API paths or payload shapes changed, so `docs/codex/CONTRACTS.md` did not require an update for this task.
